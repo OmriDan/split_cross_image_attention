@@ -12,6 +12,9 @@ class Range(NamedTuple):
 class RunConfig:
     # Appearance image path
     app_image_path: Path
+    # 1st Appearance image path
+    app1_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/giraffe.png')
+    app2_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/giraffe.png')
     # Struct image path
     struct_image_path: Path
     # Domain name (e.g., buildings, animals)

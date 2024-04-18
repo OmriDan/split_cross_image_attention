@@ -25,9 +25,9 @@ def run(cfg: RunConfig) -> List[Image.Image]:
     pyrallis.dump(cfg, open(cfg.output_path / 'config.yaml', 'w'))
     set_seed(cfg.seed)
     model = AppearanceTransferModel(cfg)
-    latents_app, latents_struct, noise_app, noise_struct = load_latents_or_invert_images(model=model, cfg=cfg)
-    model.set_latents(latents_app, latents_struct)
-    model.set_noise(noise_app, noise_struct)
+    latents_app1, latents_app2, latents_struct, input_app1, input_app2, noise_struct = load_latents_or_invert_images(model=model, cfg=cfg)
+    model.set_latents(latents_app1, latents_app2, latents_struct)
+    model.set_noise(input_app1, input_app2, noise_struct)
     print("Running appearance transfer...")
     images = run_appearance_transfer(model=model, cfg=cfg)
     print("Done.")
@@ -54,8 +54,9 @@ def run_appearance_transfer(model: AppearanceTransferModel, cfg: RunConfig) -> L
     ).images
     # Save images
     images[0].save(cfg.output_path / f"out_transfer---seed_{cfg.seed}.png")
-    images[1].save(cfg.output_path / f"out_style---seed_{cfg.seed}.png")
-    images[2].save(cfg.output_path / f"out_struct---seed_{cfg.seed}.png")
+    images[1].save(cfg.output_path / f"out_style1---seed_{cfg.seed}.png")
+    images[2].save(cfg.output_path / f"out_style2---seed_{cfg.seed}.png")
+    images[3].save(cfg.output_path / f"out_struct---seed_{cfg.seed}.png")
     joined_images = np.concatenate(images[::-1], axis=1)
     Image.fromarray(joined_images).save(cfg.output_path / f"out_joined---seed_{cfg.seed}.png")
     return images

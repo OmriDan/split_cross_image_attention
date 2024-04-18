@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from config import RunConfig
-from constants import OUT_INDEX, STRUCT_INDEX, STYLE_INDEX
+from constants import OUT_INDEX, STRUCT_INDEX, STYLE1_INDEX, STYLE2_INDEX
 from models.stable_diffusion import CrossImageAttentionStableDiffusionPipeline
 from utils import attention_utils
 from utils.adain import masked_adain, adain
@@ -21,28 +21,33 @@ class AppearanceTransferModel:
         self.pipe = get_stable_diffusion_model() if pipe is None else pipe
         self.register_attention_control()
         self.segmentor = Segmentor(prompt=config.prompt, object_nouns=[config.object_noun])
-        self.latents_app, self.latents_struct = None, None
-        self.zs_app, self.zs_struct = None, None
-        self.image_app_mask_32, self.image_app_mask_64 = None, None
+        self.latents_app1, self.latents_app2, self.latents_struct = None, None, None
+        self.zs_app1, self.zs_app2, self.zs_struct = None, None, None
+        self.image_app1_mask_32, self.image_app1_mask_64 = None, None
+        self.image_app2_mask_32, self.image_app2_mask_64 = None, None
         self.image_struct_mask_32, self.image_struct_mask_64 = None, None
         self.enable_edit = False
         self.step = 0
 
-    def set_latents(self, latents_app: torch.Tensor, latents_struct: torch.Tensor):
-        self.latents_app = latents_app
+    def set_latents(self, latents_app1: torch.Tensor, latents_app2: torch.Tensor, latents_struct: torch.Tensor):
+        self.latents_app1 = latents_app1
+        self.latents_app2 = latents_app2
         self.latents_struct = latents_struct
 
-    def set_noise(self, zs_app: torch.Tensor, zs_struct: torch.Tensor):
-        self.zs_app = zs_app
+    def set_noise(self, zs_app1: torch.Tensor, zs_app2: torch.Tensor, zs_struct: torch.Tensor):
+        self.zs_app1 = zs_app1
+        self.zs_app2 = zs_app2
         self.zs_struct = zs_struct
 
 
     def set_masks(self, masks: List[torch.Tensor]):
-        self.image_app_mask_32, self.image_struct_mask_32, self.image_app_mask_64, self.image_struct_mask_64 = masks
+        (self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32, self.image_app1_mask_64,
+         self.image_app2_mask_64, self.image_struct_mask_64) = masks
         self.visualize_masks()  # Visualize masks when they are set, new function
 
         # Call save_segmented_objects to save masks right after they are set
-        segmented_masks = [self.image_app_mask_32, self.image_struct_mask_32, self.image_app_mask_64, self.image_struct_mask_64]
+        segmented_masks = [self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32,
+                           self.image_app1_mask_64, self.image_app2_mask_64, self.image_struct_mask_64]
         self.save_segmented_objects(segmented_masks, "./segmentation_outputs")
 
     def save_segmented_objects(self, segmented_masks: List[torch.Tensor], save_path: str):
@@ -58,11 +63,11 @@ class AppearanceTransferModel:
     def visualize_masks(self):
         # This method visualizes masks for debugging or inspection purposes
         fig, ax = plt.subplots(2, 2, figsize=(10, 8))
-        ax[0, 0].imshow(self.image_app_mask_32.cpu().numpy(), cmap='gray')
+        ax[0, 0].imshow(self.image_app1_mask_32.cpu().numpy(), cmap='gray')
         ax[0, 0].set_title('Appearance Mask 32x32')
         ax[0, 1].imshow(self.image_struct_mask_32.cpu().numpy(), cmap='gray')
         ax[0, 1].set_title('Structure Mask 32x32')
-        ax[1, 0].imshow(self.image_app_mask_64.cpu().numpy(), cmap='gray')
+        ax[1, 0].imshow(self.image_app1_mask_64.cpu().numpy(), cmap='gray')
         ax[1, 0].set_title('Appearance Mask 64x64')
         ax[1, 1].imshow(self.image_struct_mask_64.cpu().numpy(), cmap='gray')
         ax[1, 1].set_title('Structure Mask 64x64')
@@ -80,7 +85,7 @@ class AppearanceTransferModel:
             # Apply AdaIN operation using the computed masks
             if self.config.adain_range.start <= self.step < self.config.adain_range.end:
                 if self.config.use_masked_adain:
-                    latents[0] = masked_adain(latents[0], latents[1], self.image_struct_mask_64, self.image_app_mask_64)
+                    latents[0] = masked_adain(latents[0], latents[1], self.image_struct_mask_64, self.image_app1_mask_64)
                 else:
                     latents[0] = adain(latents[0], latents[1])
 
@@ -128,8 +133,6 @@ class AppearanceTransferModel:
                     hidden_states = attn.group_norm(hidden_states.transpose(1, 2)).transpose(1, 2)
 
                 query = attn.to_q(hidden_states)
-                #query = torch.cat((query[STRUCT_INDEX], query[STYLE_INDEX]))
-                #print(f"**************  query size after cat: {query.shape} *************")
                 is_cross = encoder_hidden_states is not None
                 if not is_cross:
                     encoder_hidden_states = hidden_states
@@ -154,8 +157,8 @@ class AppearanceTransferModel:
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
                             # Inject the appearance's keys and values
-                            key[OUT_INDEX] = key[STYLE_INDEX]
-                            value[OUT_INDEX] = value[STYLE_INDEX]
+                            key[OUT_INDEX] = key[STYLE1_INDEX]
+                            value[OUT_INDEX] = value[STYLE1_INDEX]
 
                 query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
                 #print(f'******** after view query size: {query.shape} *********')

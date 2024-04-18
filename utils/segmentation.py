@@ -6,7 +6,7 @@ import torch
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 import numpy as np
-from constants import STYLE_INDEX, STRUCT_INDEX
+from constants import STYLE1_INDEX, STRUCT_INDEX, STYLE2_INDEX
 
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
@@ -78,15 +78,19 @@ class Segmentor:
         np.random.seed(1)
         self_attn = self.self_attention_32 if res == 32 else self.self_attention_64
 
-        style_attn = self_attn[STYLE_INDEX].mean(dim=0).cpu().numpy()
-        style_kmeans = KMeans(n_clusters=self.num_segments, n_init=10).fit(style_attn)
-        style_clusters = style_kmeans.labels_.reshape(res, res)
+        style1_attn = self_attn[STYLE1_INDEX].mean(dim=0).cpu().numpy()
+        style1_kmeans = KMeans(n_clusters=self.num_segments, n_init=10).fit(style1_attn)
+        style1_clusters = style1_kmeans.labels_.reshape(res, res)
+
+        style2_attn = self_attn[STYLE2_INDEX].mean(dim=0).cpu().numpy()
+        style2_kmeans = KMeans(n_clusters=self.num_segments, n_init=10).fit(style2_attn)
+        style2_clusters = style2_kmeans.labels_.reshape(res, res)
 
         struct_attn = self_attn[STRUCT_INDEX].mean(dim=0).cpu().numpy()
         struct_kmeans = KMeans(n_clusters=self.num_segments, n_init=10).fit(struct_attn)
         struct_clusters = struct_kmeans.labels_.reshape(res, res)
 
-        return style_clusters, struct_clusters
+        return style1_clusters, style2_clusters, struct_clusters
 
     def visualize_clusters(self, clusters, title):
         plt.figure(figsize=(8, 8))
@@ -149,39 +153,51 @@ class Segmentor:
 
     def get_object_masks(self) -> Tuple[torch.Tensor]:
 
-        clusters_style_32, clusters_struct_32 = self.cluster(res=32)
-        clusters_style_64, clusters_struct_64 = self.cluster(res=64)
+        clusters_style1_32, clusters_style2_32, clusters_struct_32 = self.cluster(res=32)
+        clusters_style1_64, clusters_style2_64, clusters_struct_64 = self.cluster(res=64)
 
         # Get cluster to noun mappings for visualization
-        cluster2noun_32_style = self.cluster2noun(clusters_style_32, self.cross_attention_32, STYLE_INDEX)
+        cluster2noun_32_style1 = self.cluster2noun(clusters_style1_32, self.cross_attention_32, STYLE1_INDEX)
+        cluster2noun_32_style2 = self.cluster2noun(clusters_style2_32, self.cross_attention_32, STYLE2_INDEX)
         cluster2noun_32_struct = self.cluster2noun(clusters_struct_32, self.cross_attention_32, STRUCT_INDEX)
-        cluster2noun_64_style = self.cluster2noun(clusters_style_64, self.cross_attention_64, STYLE_INDEX)
+        cluster2noun_64_style1 = self.cluster2noun(clusters_style1_64, self.cross_attention_64, STYLE1_INDEX)
+        cluster2noun_64_style2 = self.cluster2noun(clusters_style2_64, self.cross_attention_64, STYLE2_INDEX)
         cluster2noun_64_struct = self.cluster2noun(clusters_struct_64, self.cross_attention_64, STRUCT_INDEX)
 
         # Visualize clusters with nouns
-        self.visualize_cluster_nouns(clusters_style_32, cluster2noun_32_style,
-                                     'Style Clusters Resolution 32 with Nouns')
+        self.visualize_cluster_nouns(clusters_style1_32, cluster2noun_32_style1,
+                                     'Style1 Clusters Resolution 32 with Nouns')
+        self.visualize_cluster_nouns(clusters_style2_32, cluster2noun_32_style2,
+                                     'Style2 Clusters Resolution 32 with Nouns')
         self.visualize_cluster_nouns(clusters_struct_32, cluster2noun_32_struct,
                                      'Structural Clusters Resolution 32 with Nouns')
-        self.visualize_cluster_nouns(clusters_style_64, cluster2noun_64_style,
-                                     'Style Clusters Resolution 64 with Nouns')
+        self.visualize_cluster_nouns(clusters_style1_64, cluster2noun_64_style1,
+                                     'Style1 Clusters Resolution 64 with Nouns')
+        self.visualize_cluster_nouns(clusters_style2_64, cluster2noun_64_style2,
+                                     'Style2 Clusters Resolution 64 with Nouns')
         self.visualize_cluster_nouns(clusters_struct_64, cluster2noun_64_struct,
                                      'Structural Clusters Resolution 64 with Nouns')
         # Add visualization for clusters
-        self.visualize_clusters(clusters_style_32, 'Style Clusters Resolution 32')
+        self.visualize_clusters(clusters_style1_32, 'Style1 Clusters Resolution 32')
+        self.visualize_clusters(clusters_style2_32, 'Style2 Clusters Resolution 32')
         self.visualize_clusters(clusters_struct_32, 'Structural Clusters Resolution 32')
-        self.visualize_clusters(clusters_style_64, 'Style Clusters Resolution 64')
+        self.visualize_clusters(clusters_style1_64, 'Style1 Clusters Resolution 64')
+        self.visualize_clusters(clusters_style2_64, 'Style2 Clusters Resolution 64')
         self.visualize_clusters(clusters_struct_64, 'Structural Clusters Resolution 64')
 
-        mask_style_32 = self.create_mask(clusters_style_32, self.cross_attention_32, STYLE_INDEX)
+        mask_style1_32 = self.create_mask(clusters_style1_32, self.cross_attention_32, STYLE1_INDEX)
+        mask_style2_32 = self.create_mask(clusters_style2_32, self.cross_attention_32, STYLE2_INDEX)
         mask_struct_32 = self.create_mask(clusters_struct_32, self.cross_attention_32, STRUCT_INDEX)
-        mask_style_64 = self.create_mask(clusters_style_64, self.cross_attention_64, STYLE_INDEX)
+        mask_style1_64 = self.create_mask(clusters_style1_64, self.cross_attention_64, STYLE1_INDEX)
+        mask_style2_64 = self.create_mask(clusters_style2_64, self.cross_attention_64, STYLE1_INDEX)
         mask_struct_64 = self.create_mask(clusters_struct_64, self.cross_attention_64, STRUCT_INDEX)
 
         # Visualizing and saving the masks
-        self.visualize_masks(mask_style_32.cpu().numpy(), 'Style Mask Resolution 32')
+        self.visualize_masks(mask_style1_32.cpu().numpy(), 'Style1 Mask Resolution 32')
+        self.visualize_masks(mask_style2_32.cpu().numpy(), 'Style2 Mask Resolution 32')
         self.visualize_masks(mask_struct_32.cpu().numpy(), 'Structural Mask Resolution 32')
-        self.visualize_masks(mask_style_64.cpu().numpy(), 'Style Mask Resolution 64')
+        self.visualize_masks(mask_style1_64.cpu().numpy(), 'Style1 Mask Resolution 64')
+        self.visualize_masks(mask_style2_64.cpu().numpy(), 'Style2 Mask Resolution 64')
         self.visualize_masks(mask_struct_64.cpu().numpy(), 'Structural Mask Resolution 64')
 
-        return mask_style_32, mask_struct_32, mask_style_64, mask_struct_64
+        return mask_style1_32, mask_style2_32, mask_struct_32, mask_style1_64, mask_style2_64, mask_struct_64

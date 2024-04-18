@@ -7,13 +7,15 @@ from PIL import Image
 from config import RunConfig
 
 
-def load_images(cfg: RunConfig, save_path: Optional[pathlib.Path] = None) -> Tuple[Image.Image, Image.Image]:
-    image_style = load_size(cfg.app_image_path)
+def load_images(cfg: RunConfig, save_path: Optional[pathlib.Path] = None) -> Tuple[Image.Image, Image.Image, Image.Image]:
+    image_style1 = load_size(cfg.app1_image_path)
+    image_style2 = load_size(cfg.app2_image_path)
     image_struct = load_size(cfg.struct_image_path)
     if save_path is not None:
-        Image.fromarray(image_style).save(save_path / f"in_style.png")
+        Image.fromarray(image_style1).save(save_path / f"in_style1.png")
+        Image.fromarray(image_style2).save(save_path / f"in_style2.png")
         Image.fromarray(image_struct).save(save_path / f"in_struct.png")
-    return image_style, image_struct
+    return image_style1, image_style2, image_struct
 
 
 def load_size(image_path: pathlib.Path,
@@ -49,9 +51,9 @@ def load_size(image_path: pathlib.Path,
 
 
 def save_generated_masks(model, cfg: RunConfig):
-    tensor2im(model.image_app_mask_32).save(cfg.output_path / f"mask_style_32.png")
+    tensor2im(model.image_app1_mask_32).save(cfg.output_path / f"mask_style1_32.png")
     tensor2im(model.image_struct_mask_32).save(cfg.output_path / f"mask_struct_32.png")
-    tensor2im(model.image_app_mask_64).save(cfg.output_path / f"mask_style_64.png")
+    tensor2im(model.image_app1_mask_64).save(cfg.output_path / f"mask_style1_64.png")
     tensor2im(model.image_struct_mask_64).save(cfg.output_path / f"mask_struct_64.png")
 
 
