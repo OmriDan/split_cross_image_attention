@@ -4,7 +4,8 @@ import nltk
 import numpy as np
 import torch
 from sklearn.cluster import KMeans
-
+import matplotlib.pyplot as plt
+import numpy as np
 from constants import STYLE_INDEX, STRUCT_INDEX
 
 nltk.download('punkt')
@@ -13,6 +14,7 @@ nltk.download('averaged_perceptron_tagger')
 """
 Self-segmentation technique taken from Prompt Mixing: https://github.com/orpatashnik/local-prompt-mixing
 """
+
 
 class Segmentor:
 
@@ -44,6 +46,34 @@ class Segmentor:
         cluster2noun = self.cluster2noun(clusters)
         return cluster2noun
 
+    def visualize_cluster_nouns(self, clusters, noun_assignments, title):
+        """
+        Visualize clusters with annotated nouns.
+
+        Args:
+        clusters (np.array): The cluster array where each element is a cluster id.
+        noun_assignments (dict): A dictionary where keys are cluster ids and values are the most relevant nouns.
+        title (str): The title for the plot.
+        """
+        plt.figure(figsize=(10, 10))
+        plt.imshow(clusters, cmap='viridis')
+        plt.colorbar()
+        plt.title(title)
+        plt.axis('off')
+
+        # Annotate each cluster with the corresponding noun
+        unique_clusters = np.unique(clusters)
+        for cluster_id in unique_clusters:
+            # Find the centroid of the cluster to place the text
+            indices = np.where(clusters == cluster_id)
+            centroid_x = np.mean(indices[1])
+            centroid_y = np.mean(indices[0])
+            noun = noun_assignments.get(cluster_id, "BG")
+            plt.text(centroid_x, centroid_y, f'{noun[1]}', color='red', ha='center', va='center')
+
+        plt.savefig(f"{title.replace(' ', '_').lower()}.png")
+        plt.show()
+
     def cluster(self, res: int = 32):
         np.random.seed(1)
         self_attn = self.self_attention_32 if res == 32 else self.self_attention_64
@@ -58,6 +88,24 @@ class Segmentor:
 
         return style_clusters, struct_clusters
 
+    def visualize_clusters(self, clusters, title):
+        plt.figure(figsize=(8, 8))
+        plt.imshow(clusters, cmap='viridis')
+        plt.colorbar()
+        plt.title(title)
+        plt.axis('off')
+        plt.savefig(f"{title.replace(' ', '_').lower()}.png")
+        plt.show()
+
+    def visualize_masks(self, mask, title, cmap='gray'):
+        plt.figure(figsize=(8, 8))
+        plt.imshow(mask, cmap=cmap)
+        plt.colorbar()
+        plt.title(title)
+        plt.axis('off')
+        plt.savefig(f"{title.replace(' ', '_').lower()}.png")
+        plt.show()
+
     def cluster2noun(self, clusters, cross_attn, attn_index):
         result = {}
         res = int(cross_attn.shape[2] ** 0.5)
@@ -68,7 +116,7 @@ class Segmentor:
         for i in range(nouns_maps.shape[-1]):
             curr_noun_map = nouns_maps[:, :, i].repeat(2, axis=0).repeat(2, axis=1)
             normalized_nouns_maps[:, :, i] = (curr_noun_map - np.abs(curr_noun_map.min())) / curr_noun_map.max()
-        
+
         max_score = 0
         all_scores = []
         for c in range(self.num_segments):
@@ -100,12 +148,40 @@ class Segmentor:
         return torch.from_numpy(mask).to("cuda")
 
     def get_object_masks(self) -> Tuple[torch.Tensor]:
+
         clusters_style_32, clusters_struct_32 = self.cluster(res=32)
         clusters_style_64, clusters_struct_64 = self.cluster(res=64)
+
+        # Get cluster to noun mappings for visualization
+        cluster2noun_32_style = self.cluster2noun(clusters_style_32, self.cross_attention_32, STYLE_INDEX)
+        cluster2noun_32_struct = self.cluster2noun(clusters_struct_32, self.cross_attention_32, STRUCT_INDEX)
+        cluster2noun_64_style = self.cluster2noun(clusters_style_64, self.cross_attention_64, STYLE_INDEX)
+        cluster2noun_64_struct = self.cluster2noun(clusters_struct_64, self.cross_attention_64, STRUCT_INDEX)
+
+        # Visualize clusters with nouns
+        self.visualize_cluster_nouns(clusters_style_32, cluster2noun_32_style,
+                                     'Style Clusters Resolution 32 with Nouns')
+        self.visualize_cluster_nouns(clusters_struct_32, cluster2noun_32_struct,
+                                     'Structural Clusters Resolution 32 with Nouns')
+        self.visualize_cluster_nouns(clusters_style_64, cluster2noun_64_style,
+                                     'Style Clusters Resolution 64 with Nouns')
+        self.visualize_cluster_nouns(clusters_struct_64, cluster2noun_64_struct,
+                                     'Structural Clusters Resolution 64 with Nouns')
+        # Add visualization for clusters
+        self.visualize_clusters(clusters_style_32, 'Style Clusters Resolution 32')
+        self.visualize_clusters(clusters_struct_32, 'Structural Clusters Resolution 32')
+        self.visualize_clusters(clusters_style_64, 'Style Clusters Resolution 64')
+        self.visualize_clusters(clusters_struct_64, 'Structural Clusters Resolution 64')
 
         mask_style_32 = self.create_mask(clusters_style_32, self.cross_attention_32, STYLE_INDEX)
         mask_struct_32 = self.create_mask(clusters_struct_32, self.cross_attention_32, STRUCT_INDEX)
         mask_style_64 = self.create_mask(clusters_style_64, self.cross_attention_64, STYLE_INDEX)
         mask_struct_64 = self.create_mask(clusters_struct_64, self.cross_attention_64, STRUCT_INDEX)
+
+        # Visualizing and saving the masks
+        self.visualize_masks(mask_style_32.cpu().numpy(), 'Style Mask Resolution 32')
+        self.visualize_masks(mask_struct_32.cpu().numpy(), 'Structural Mask Resolution 32')
+        self.visualize_masks(mask_style_64.cpu().numpy(), 'Style Mask Resolution 64')
+        self.visualize_masks(mask_struct_64.cpu().numpy(), 'Structural Mask Resolution 64')
 
         return mask_style_32, mask_struct_32, mask_style_64, mask_struct_64

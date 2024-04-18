@@ -1,8 +1,8 @@
 from typing import List, Optional, Callable
-
+from PIL import Image
 import torch
 import torch.nn.functional as F
-
+import matplotlib.pyplot as plt
 from config import RunConfig
 from constants import OUT_INDEX, STRUCT_INDEX, STYLE_INDEX
 from models.stable_diffusion import CrossImageAttentionStableDiffusionPipeline
@@ -11,6 +11,8 @@ from utils.adain import masked_adain, adain
 from utils.model_utils import get_stable_diffusion_model
 from utils.segmentation import Segmentor
 from utils.create_attention_maps import create_maps
+import numpy as np
+import os
 
 class AppearanceTransferModel:
 
@@ -34,8 +36,38 @@ class AppearanceTransferModel:
         self.zs_app = zs_app
         self.zs_struct = zs_struct
 
+
     def set_masks(self, masks: List[torch.Tensor]):
         self.image_app_mask_32, self.image_struct_mask_32, self.image_app_mask_64, self.image_struct_mask_64 = masks
+        self.visualize_masks()  # Visualize masks when they are set, new function
+
+        # Call save_segmented_objects to save masks right after they are set
+        segmented_masks = [self.image_app_mask_32, self.image_struct_mask_32, self.image_app_mask_64, self.image_struct_mask_64]
+        self.save_segmented_objects(segmented_masks, "/home/omridan/msc/cross-image-attention/")
+
+    def save_segmented_objects(self, segmented_masks: List[torch.Tensor], save_path: str):
+        # Ensure the directory exists
+        import os
+        os.makedirs(save_path, exist_ok=True)
+
+        for i, mask in enumerate(segmented_masks):
+            # Convert mask to PIL image
+            mask_image = Image.fromarray(mask.cpu().numpy().astype("uint8") * 255)
+            mask_image.save(f"{save_path}/segment_{i}.png")
+
+    def visualize_masks(self):
+        # This method visualizes masks for debugging or inspection purposes
+        fig, ax = plt.subplots(2, 2, figsize=(10, 8))
+        ax[0, 0].imshow(self.image_app_mask_32.cpu().numpy(), cmap='gray')
+        ax[0, 0].set_title('Appearance Mask 32x32')
+        ax[0, 1].imshow(self.image_struct_mask_32.cpu().numpy(), cmap='gray')
+        ax[0, 1].set_title('Structure Mask 32x32')
+        ax[1, 0].imshow(self.image_app_mask_64.cpu().numpy(), cmap='gray')
+        ax[1, 0].set_title('Appearance Mask 64x64')
+        ax[1, 1].imshow(self.image_struct_mask_64.cpu().numpy(), cmap='gray')
+        ax[1, 1].set_title('Structure Mask 64x64')
+        plt.tight_layout()
+        plt.show()
 
     def get_adain_callback(self):
 
@@ -96,7 +128,8 @@ class AppearanceTransferModel:
                     hidden_states = attn.group_norm(hidden_states.transpose(1, 2)).transpose(1, 2)
 
                 query = attn.to_q(hidden_states)
-
+                #query = torch.cat((query[STRUCT_INDEX], query[STYLE_INDEX]))
+                #print(f"**************  query size after cat: {query.shape} *************")
                 is_cross = encoder_hidden_states is not None
                 if not is_cross:
                     encoder_hidden_states = hidden_states
@@ -111,7 +144,7 @@ class AppearanceTransferModel:
                 should_mix = False
 
                 # Potentially apply our cross image attention operation
-                # To do so, we need to be in a self-attention alyer in the decoder part of the denoising network
+                # To do so, we need to be in a self-attention layer in the decoder part of the denoising network
                 if perform_swap and not is_cross and "up" in self.place_in_unet and model_self.enable_edit:
                     if attention_utils.should_mix_keys_and_values(model_self, hidden_states):
                         should_mix = True
@@ -125,6 +158,7 @@ class AppearanceTransferModel:
                             value[OUT_INDEX] = value[STYLE_INDEX]
 
                 query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+                #print(f'******** after view query size: {query.shape} *********')
                 key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
                 value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
 

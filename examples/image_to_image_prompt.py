@@ -10,10 +10,10 @@ pipeline.enable_model_cpu_offload()
 
 
 # prepare image
-init_image_path = "/home/omridan/msc/cross-image-attention/prompt_creations/Zebra in times square, 8k_seed12_guidance_scale4_5.png"
+init_image_path = "/home/omridan/msc/cross-image-attention/prompt_creations/Zebra on the moon.png"
 init_image = load_image(init_image_path)
 
-prompt = "Zebra in the african savanna, photo"
+prompt = "Zebra in tokyo downtown, photo"
 generator = torch.Generator(device="cuda").manual_seed(10)
 
 # pass prompt and image to pipeline

@@ -36,8 +36,7 @@ class RunConfig:
     swap_guidance_scale: float = 3.5
     # Attention contrasting strength
     contrast_strength: float = 1.67
-    # Object nouns to use for self-segmentation (will use the domain name as default)
-    object_noun: Optional[str] = None
+    # Object nouns to use for self-segmentation (will use the domain name as default: Optional[str] = None
     # Whether to load previously saved inverted latent codes
     load_latents: bool = True
     # Number of steps to skip in the denoising process (used value from original edit-friendly DDPM paper)
