@@ -43,7 +43,7 @@ class AppearanceTransferModel:
 
         # Call save_segmented_objects to save masks right after they are set
         segmented_masks = [self.image_app_mask_32, self.image_struct_mask_32, self.image_app_mask_64, self.image_struct_mask_64]
-        self.save_segmented_objects(segmented_masks, "/home/omridan/msc/cross-image-attention/")
+        self.save_segmented_objects(segmented_masks, "./segmentation_outputs")
 
     def save_segmented_objects(self, segmented_masks: List[torch.Tensor], save_path: str):
         # Ensure the directory exists
