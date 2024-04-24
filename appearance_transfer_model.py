@@ -222,6 +222,25 @@ class AppearanceTransferModel:
                 cross_att_count += register_recr(net[1], 0, "up")
             elif "mid" in net[0]:
                 cross_att_count += register_recr(net[1], 0, "mid")
-        def mask_keys(keys, mask):
-            keys[OUT_INDEX] = keys[OUT_INDEX] - torch.Tensor([float('-inf')]) * mask
-            return keys
+        def masked_cross_attn_keys(query, key, value):
+
+            #key[OUT_INDEX] = key[OUT_INDEX] - torch.Tensor([float('-inf')]) * binary_mask_appearance2 # masking style2
+            #key[OUT_INDEX] = key[OUT_INDEX] - torch.Tensor([float('-inf')]) * binary_mask_appearance1 # masking style1
+
+            hidden_states, attn_weight = attention_utils.compute_scaled_dot_product_attention(
+                query, key, value)
+            model_self.segmentor.update_attention(attn_weight, is_cross=False)  # check if its not damaging our atten. Maybe is_cross=True?
+            masks = self.segmentor.get_object_masks()
+
+            binary_mask_appearance1, binary_mask_appearance2 = masks
+            inv_binary_mask_appearance1 = ~binary_mask_appearance1
+            inv_binary_mask_appearance2 = ~binary_mask_appearance2
+
+            # Using k,v from style 1 on object 1
+            key[OUT_INDEX] = key[OUT_INDEX] * inv_binary_mask_appearance1 + key[STYLE1_INDEX] * binary_mask_appearance1 # adding k of style1
+            value[OUT_INDEX] = value[OUT_INDEX] * inv_binary_mask_appearance1 + value[STYLE1_INDEX] * binary_mask_appearance1
+            # Using k,v from style 2 on object 2
+            key[OUT_INDEX] = key[OUT_INDEX] * inv_binary_mask_appearance2 + key[STYLE2_INDEX] * binary_mask_appearance2
+            value[OUT_INDEX] = value[OUT_INDEX] * inv_binary_mask_appearance2 + value[STYLE2_INDEX] * binary_mask_appearance2
+
+            return key, value
