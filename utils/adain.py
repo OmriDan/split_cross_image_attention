@@ -1,20 +1,23 @@
-def masked_adain(content_feat, style1_feat, content_mask, style_mask):
-    assert (content_feat.size()[:2] == style1_feat.size()[:2])
+def masked_adain(content_feat, style1_feat, style2_feat, content_mask, style1_mask, style2_mask):
+    assert ((content_feat.size()[:2] == style1_feat.size()[:2]) and (content_feat.size()[:2] == style2_feat.size()[:2]))
     size = content_feat.size()
-    style1_mean, style_std = calc_mean_std(style1_feat, mask=style_mask)
+    style1_mean, style1_std = calc_mean_std(style1_feat, mask=style1_mask)
+    style2_mean, style2_std = calc_mean_std(style2_feat, mask=style2_mask)
     content_mean, content_std = calc_mean_std(content_feat, mask=content_mask)
     normalized_feat = (content_feat - content_mean.expand(size)) / content_std.expand(size)
-    style_normalized_feat = normalized_feat * style_std.expand(size) + style1_mean.expand(size)
-    return content_feat * (1 - content_mask) + style_normalized_feat * content_mask
+    style1_normalized_feat = normalized_feat * style1_std.expand(size) + style1_mean.expand(size)
+    style2_normalized_feat = normalized_feat * style2_std.expand(size) + style2_mean.expand(size)
+    return content_feat * (1 - content_mask) + style1_normalized_feat * content_mask #+ style2_normalized_feat * content_mask # TODO: add style2
 
 
-def adain(content_feat, style1_feat):
-    assert (content_feat.size()[:2] == style1_feat.size()[:2])
+def adain(content_feat, style1_feat, style2_feat):
+    assert ((content_feat.size()[:2] == style1_feat.size()[:2]) and (content_feat.size()[:2] == style2_feat.size()[:2]))
     size = content_feat.size()
-    style1_mean, style_std = calc_mean_std(style1_feat)
+    style1_mean, style1_std = calc_mean_std(style1_feat)
+    style2_mean, style2_std = calc_mean_std(style2_feat)
     content_mean, content_std = calc_mean_std(content_feat)
     normalized_feat = (content_feat - content_mean.expand(size)) / content_std.expand(size)
-    return normalized_feat * style_std.expand(size) + style1_mean.expand(size)
+    return normalized_feat * style1_std.expand(size) + style1_mean.expand(size)# + normalized_feat * style2_std.expand(size)  + style2_mean.expand(size)# TODO: add style2
 
 
 def calc_mean_std(feat, eps=1e-5, mask=None):

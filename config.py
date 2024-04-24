@@ -10,17 +10,16 @@ class Range(NamedTuple):
 
 @dataclass
 class RunConfig:
-    # Appearance image path
-    app_image_path: Path
     # 1st Appearance image path
-    app1_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/giraffe.png')
-    app2_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/giraffe.png')
+    app1_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/dalmatian.png')
+    # 2nd Appearance image path
+    app2_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/red_cat.png')
     # Struct image path
-    struct_image_path: Path
+    struct_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/cat_and_dog3.png')
     # Domain name (e.g., buildings, animals)
-    domain_name: Optional[str] = None
+    domain_name: Optional[str] = 'animal' #None
     # Output path
-    output_path: Path = Path('./output')
+    output_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/output') #Path('./output')
     # Random seed
     seed: int = 42
     # Input prompt for inversion (will use domain name as default)
@@ -40,13 +39,14 @@ class RunConfig:
     # Attention contrasting strength
     contrast_strength: float = 1.67
     # Object nouns to use for self-segmentation (will use the domain name as default: Optional[str] = None
+    object_noun: Optional[str] = None
     # Whether to load previously saved inverted latent codes
     load_latents: bool = True
     # Number of steps to skip in the denoising process (used value from original edit-friendly DDPM paper)
     skip_steps: int = 32
 
     def __post_init__(self):
-        save_name = f'app={self.app_image_path.stem}---struct={self.struct_image_path.stem}'
+        save_name = f'app1={self.app1_image_path.stem}---app2={self.app2_image_path.stem}---struct={self.struct_image_path.stem}'
         self.output_path = self.output_path / self.domain_name / save_name
         self.output_path.mkdir(parents=True, exist_ok=True)
 
@@ -56,12 +56,13 @@ class RunConfig:
         if not self.use_masked_adain and self.domain_name is None:
             self.domain_name = "object"
         if self.prompt is None:
-            self.prompt = f"A photo of a {self.domain_name}"
+            self.prompt = f"A photo of {self.domain_name}"
         if self.object_noun is None:
             self.object_noun = self.domain_name
 
         # Define the paths to store the inverted latents to
         self.latents_path = Path(self.output_path) / "latents"
         self.latents_path.mkdir(parents=True, exist_ok=True)
-        self.app_latent_save_path = self.latents_path / f"{self.app_image_path.stem}.pt"
+        self.app1_latent_save_path = self.latents_path / f"{self.app1_image_path.stem}.pt"
+        self.app2_latent_save_path = self.latents_path / f"{self.app2_image_path.stem}.pt"
         self.struct_latent_save_path = self.latents_path / f"{self.struct_image_path.stem}.pt"

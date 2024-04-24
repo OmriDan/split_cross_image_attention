@@ -1,7 +1,6 @@
 from typing import Tuple, List
 
 import nltk
-import numpy as np
 import torch
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
@@ -23,6 +22,7 @@ class Segmentor:
         self.num_segments = num_segments
         self.resolution = res
         self.object_nouns = object_nouns
+        print(object_nouns)
         tokenized_prompt = nltk.word_tokenize(prompt)
         forbidden_words = [word.upper() for word in ["photo", "image", "picture"]]
         self.nouns = [(i, word) for (i, (word, pos)) in enumerate(nltk.pos_tag(tokenized_prompt))
@@ -45,6 +45,7 @@ class Segmentor:
         clusters = self.cluster()
         cluster2noun = self.cluster2noun(clusters)
         return cluster2noun
+
 
     def visualize_cluster_nouns(self, clusters, noun_assignments, title):
         """
@@ -72,7 +73,7 @@ class Segmentor:
             plt.text(centroid_x, centroid_y, f'{noun[1]}', color='red', ha='center', va='center')
 
         plt.savefig(f"{title.replace(' ', '_').lower()}.png")
-        plt.show()
+        # plt.show()
 
     def cluster(self, res: int = 32):
         np.random.seed(1)
@@ -99,7 +100,7 @@ class Segmentor:
         plt.title(title)
         plt.axis('off')
         plt.savefig(f"{title.replace(' ', '_').lower()}.png")
-        plt.show()
+        # plt.show()
 
     def visualize_masks(self, mask, title, cmap='gray'):
         plt.figure(figsize=(8, 8))
@@ -108,7 +109,7 @@ class Segmentor:
         plt.title(title)
         plt.axis('off')
         plt.savefig(f"{title.replace(' ', '_').lower()}.png")
-        plt.show()
+        # plt.show()
 
     def cluster2noun(self, clusters, cross_attn, attn_index):
         result = {}
@@ -178,12 +179,12 @@ class Segmentor:
         self.visualize_cluster_nouns(clusters_struct_64, cluster2noun_64_struct,
                                      'Structural Clusters Resolution 64 with Nouns')
         # Add visualization for clusters
-        self.visualize_clusters(clusters_style1_32, 'Style1 Clusters Resolution 32')
-        self.visualize_clusters(clusters_style2_32, 'Style2 Clusters Resolution 32')
-        self.visualize_clusters(clusters_struct_32, 'Structural Clusters Resolution 32')
-        self.visualize_clusters(clusters_style1_64, 'Style1 Clusters Resolution 64')
-        self.visualize_clusters(clusters_style2_64, 'Style2 Clusters Resolution 64')
-        self.visualize_clusters(clusters_struct_64, 'Structural Clusters Resolution 64')
+        # self.visualize_clusters(clusters_style1_32, 'Style1 Clusters Resolution 32')
+        # self.visualize_clusters(clusters_style2_32, 'Style2 Clusters Resolution 32')
+        # self.visualize_clusters(clusters_struct_32, 'Structural Clusters Resolution 32')
+        # self.visualize_clusters(clusters_style1_64, 'Style1 Clusters Resolution 64')
+        # self.visualize_clusters(clusters_style2_64, 'Style2 Clusters Resolution 64')
+        # self.visualize_clusters(clusters_struct_64, 'Structural Clusters Resolution 64')
 
         mask_style1_32 = self.create_mask(clusters_style1_32, self.cross_attention_32, STYLE1_INDEX)
         mask_style2_32 = self.create_mask(clusters_style2_32, self.cross_attention_32, STYLE2_INDEX)

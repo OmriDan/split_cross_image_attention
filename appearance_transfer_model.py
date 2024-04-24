@@ -14,6 +14,7 @@ from utils.create_attention_maps import create_maps
 import numpy as np
 import os
 
+
 class AppearanceTransferModel:
 
     def __init__(self, config: RunConfig, pipe: Optional[CrossImageAttentionStableDiffusionPipeline] = None):
@@ -39,7 +40,6 @@ class AppearanceTransferModel:
         self.zs_app2 = zs_app2
         self.zs_struct = zs_struct
 
-
     def set_masks(self, masks: List[torch.Tensor]):
         (self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32, self.image_app1_mask_64,
          self.image_app2_mask_64, self.image_struct_mask_64) = masks
@@ -62,17 +62,21 @@ class AppearanceTransferModel:
 
     def visualize_masks(self):
         # This method visualizes masks for debugging or inspection purposes
-        fig, ax = plt.subplots(2, 2, figsize=(10, 8))
+        fig, ax = plt.subplots(2, 3, figsize=(10, 8))
         ax[0, 0].imshow(self.image_app1_mask_32.cpu().numpy(), cmap='gray')
         ax[0, 0].set_title('Appearance Mask 32x32')
         ax[0, 1].imshow(self.image_struct_mask_32.cpu().numpy(), cmap='gray')
         ax[0, 1].set_title('Structure Mask 32x32')
+        ax[0, 2].imshow(self.image_app2_mask_32.cpu().numpy(), cmap='gray')
+        ax[0, 2].set_title('Appearance Mask 2, 32x32')
         ax[1, 0].imshow(self.image_app1_mask_64.cpu().numpy(), cmap='gray')
         ax[1, 0].set_title('Appearance Mask 64x64')
         ax[1, 1].imshow(self.image_struct_mask_64.cpu().numpy(), cmap='gray')
         ax[1, 1].set_title('Structure Mask 64x64')
+        ax[1, 2].imshow(self.image_app2_mask_64.cpu().numpy(), cmap='gray')
+        ax[1, 2].set_title('Appearance Mask 2, 64x64')
         plt.tight_layout()
-        plt.show()
+        # plt.show()
 
     def get_adain_callback(self):
 
@@ -85,9 +89,10 @@ class AppearanceTransferModel:
             # Apply AdaIN operation using the computed masks
             if self.config.adain_range.start <= self.step < self.config.adain_range.end:
                 if self.config.use_masked_adain:
-                    latents[0] = masked_adain(latents[0], latents[1], self.image_struct_mask_64, self.image_app1_mask_64)
+                    latents[OUT_INDEX] = masked_adain(latents[OUT_INDEX], latents[STYLE1_INDEX], latents[STYLE2_INDEX],
+                                                      self.image_struct_mask_64, self.image_app1_mask_64, self.image_app2_mask_64)
                 else:
-                    latents[0] = adain(latents[0], latents[1])
+                    latents[OUT_INDEX] = adain(latents[OUT_INDEX], latents[STYLE1_INDEX], latents[STYLE2_INDEX])
 
         return callback
 
@@ -157,11 +162,12 @@ class AppearanceTransferModel:
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
                             # Inject the appearance's keys and values
-                            key[OUT_INDEX] = key[STYLE1_INDEX]
-                            value[OUT_INDEX] = value[STYLE1_INDEX]
+                            test_mask = torch.zeros_like(key[OUT_INDEX])
+                            key[OUT_INDEX] = key[STYLE2_INDEX]
+                            value[OUT_INDEX] = value[STYLE2_INDEX]
+                #           # value[OUT_INDEX] = value[STYLE1_INDEX]
 
                 query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-                #print(f'******** after view query size: {query.shape} *********')
                 key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
                 value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
 
@@ -216,3 +222,6 @@ class AppearanceTransferModel:
                 cross_att_count += register_recr(net[1], 0, "up")
             elif "mid" in net[0]:
                 cross_att_count += register_recr(net[1], 0, "mid")
+        def mask_keys(keys, mask):
+            keys[OUT_INDEX] = keys[OUT_INDEX] - torch.Tensor([float('-inf')]) * mask
+            return keys
