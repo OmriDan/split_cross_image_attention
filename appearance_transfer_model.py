@@ -222,25 +222,46 @@ class AppearanceTransferModel:
                 cross_att_count += register_recr(net[1], 0, "up")
             elif "mid" in net[0]:
                 cross_att_count += register_recr(net[1], 0, "mid")
-        def masked_cross_attn_keys(query, key, value):
+        def masked_cross_attn_keys(query, key, value,is_cross=False):
 
-            #key[OUT_INDEX] = key[OUT_INDEX] - torch.Tensor([float('-inf')]) * binary_mask_appearance2 # masking style2
-            #key[OUT_INDEX] = key[OUT_INDEX] - torch.Tensor([float('-inf')]) * binary_mask_appearance1 # masking style1
+            #key[OUT_INDEX] = key[OUT_INDEX] + torch.Tensor([float('-inf')]) * binary_mask_appearance2 # masking style2
+            #key[OUT_INDEX] = key[OUT_INDEX] + torch.Tensor([float('-inf')]) * binary_mask_appearance1 # masking style1
 
-            hidden_states, attn_weight = attention_utils.compute_scaled_dot_product_attention(
-                query, key, value)
-            model_self.segmentor.update_attention(attn_weight, is_cross=False)  # check if its not damaging our atten. Maybe is_cross=True?
-            masks = self.segmentor.get_object_masks()
+           # hidden_states, attn_weight = attention_utils.compute_scaled_dot_product_attention(
+           #     query, key, value, is_cross=is_cross)
 
-            binary_mask_appearance1, binary_mask_appearance2 = masks
-            inv_binary_mask_appearance1 = ~binary_mask_appearance1
-            inv_binary_mask_appearance2 = ~binary_mask_appearance2
+            convert_tensor = transforms.ToTensor()
+            #model_self.segmentor.update_attention(attn_weight, is_cross=False)  # check if its not damaging our atten. Maybe is_cross=True?
+            #mask_style1_32, mask_style2_32, mask_struct_32, mask_style1_64, mask_style2_64, mask_struct_64 = self.segmentor.get_object_masks(is_cross=False, use_cluster=False)
+            mask_style1_32 = convert_tensor(np.load("masks/cross_attention_style1_mask_resolution_32.npy"))
+            mask_style2_32 = convert_tensor(np.load("masks/cross_attention_style2_mask_resolution_32.npy"))
+            mask_struct_32 = convert_tensor(np.load("masks/cross_attention_structural_mask_resolution_32.npy"))
+            mask_style1_64 = convert_tensor(np.load("masks/cross_attention_style1_mask_resolution_64.npy"))
+            mask_style2_64 = convert_tensor(np.load("masks/cross_attention_style2_mask_resolution_64.npy"))
+            mask_struct_64 = convert_tensor(np.load("masks/cross_attention_structural_mask_resolution_64.npy"))
+
+            if query.shape[1] == 32**2:
+                binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = mask_style1_32, mask_style2_32, mask_struct_32
+            elif query.shape[1] == 64**2:
+                binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = mask_style1_64, mask_style2_64, mask_struct_64
+            else:
+                return key, value
+            binary_mask_appearance1 = binary_mask_appearance1.squeeze().flatten()
+            binary_mask_appearance2 = binary_mask_appearance2.squeeze().flatten()
+            inv_binary_mask_appearance1 = np.bitwise_not(binary_mask_appearance1) + 2
+            inv_binary_mask_appearance2 = np.bitwise_not(binary_mask_appearance2) + 2
+            binary_mask_appearance1 = np.reshape(binary_mask_appearance1,(binary_mask_appearance1.shape[0],1)).to('cuda')
+            binary_mask_appearance2 = np.reshape(binary_mask_appearance2,(binary_mask_appearance2.shape[0],1)).to('cuda')
+            inv_binary_mask_appearance1 = np.reshape(inv_binary_mask_appearance1,(inv_binary_mask_appearance1.shape[0],1)).to('cuda')
+            inv_binary_mask_appearance2 = np.reshape(inv_binary_mask_appearance2,(inv_binary_mask_appearance2.shape[0],1)).to('cuda')
 
             # Using k,v from style 1 on object 1
             key[OUT_INDEX] = key[OUT_INDEX] * inv_binary_mask_appearance1 + key[STYLE1_INDEX] * binary_mask_appearance1 # adding k of style1
-            value[OUT_INDEX] = value[OUT_INDEX] * inv_binary_mask_appearance1 + value[STYLE1_INDEX] * binary_mask_appearance1
+            value[OUT_INDEX] = value[OUT_INDEX] * inv_binary_mask_appearance1 + value[STYLE1_INDEX] * binary_mask_appearance1 # adding v of style1
             # Using k,v from style 2 on object 2
             key[OUT_INDEX] = key[OUT_INDEX] * inv_binary_mask_appearance2 + key[STYLE2_INDEX] * binary_mask_appearance2
             value[OUT_INDEX] = value[OUT_INDEX] * inv_binary_mask_appearance2 + value[STYLE2_INDEX] * binary_mask_appearance2
+            key[OUT_INDEX] = key[OUT_INDEX] * inv_binary_mask_appearance2 + key[STYLE2_INDEX] * binary_mask_appearance2 # adding k of style2
+            value[OUT_INDEX] = value[OUT_INDEX] * inv_binary_mask_appearance2 + value[STYLE2_INDEX] * binary_mask_appearance2 # adding v of style2
 
             return key, value
