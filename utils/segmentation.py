@@ -103,7 +103,11 @@ class Segmentor:
         # plt.show()
 
     def visualize_masks(self, mask, title, cmap='gray'):
-        plt.figure(figsize=(8, 8))
+        file_title = f"{title.replace(' ', '_').lower()}"
+        with open(f'masks/{file_title}.npy', 'wb') as f:
+            np.save(f,mask)
+        f.close()
+        plt.figure()
         plt.imshow(mask, cmap=cmap)
         plt.colorbar()
         plt.title(title)
