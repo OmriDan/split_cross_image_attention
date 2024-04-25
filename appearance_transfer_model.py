@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from config import RunConfig
+from torchvision import transforms
 from constants import OUT_INDEX, STRUCT_INDEX, STYLE1_INDEX, STYLE2_INDEX
 from models.stable_diffusion import CrossImageAttentionStableDiffusionPipeline
 from utils import attention_utils
@@ -161,7 +162,9 @@ class AppearanceTransferModel:
                             key[OUT_INDEX] = key[STRUCT_INDEX]
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
-                            key, value = masked_cross_attn_keys(query, key, value, is_cross)
+                            #HELLO TEST
+                            split_q = False
+                            #key, value = masked_cross_attn_keys(query, key, value, is_cross)
                             # Inject the appearance's keys and values
                             #key[OUT_INDEX] = key[STYLE1_INDEX]
                             #value[OUT_INDEX] = value[STYLE1_INDEX]
