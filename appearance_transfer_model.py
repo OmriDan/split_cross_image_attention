@@ -28,6 +28,8 @@ class AppearanceTransferModel:
         self.image_app1_mask_32, self.image_app1_mask_64 = None, None
         self.image_app2_mask_32, self.image_app2_mask_64 = None, None
         self.image_struct_mask_32, self.image_struct_mask_64 = None, None
+        self.segmentor = Segmentor(prompt=config.prompt, object_nouns=[config.object_noun])
+        self.register_attention_control()
         self.enable_edit = False
         self.step = 0
 
@@ -41,9 +43,46 @@ class AppearanceTransferModel:
         self.zs_app2 = zs_app2
         self.zs_struct = zs_struct
 
+    def save_mask(self, mask, name, step):
+        if mask is not None:
+            # Convert the PyTorch tensor to a NumPy array
+            # Ensure the tensor is on CPU and detached from the computation graph
+            mask_array = mask.cpu().detach().numpy()
+
+            # Convert to uint8 if necessary (common for image data)
+            # This step assumes your mask is already scaled appropriately (0-255)
+            if mask_array.dtype != np.uint8:
+                mask_array = (mask_array * 255).astype(np.uint8)
+
+            # Convert NumPy array to image
+            img = Image.fromarray(mask_array)
+
+            # Ensure the directory exists
+            import os
+            save_path = f'./saved_masks/{name}_step_{step}.png'
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Save the image with a descriptive filename
+            img.save(save_path)
+            print(f"{name} is not None, saved at step: {step}")
+
     def set_masks(self, masks: List[torch.Tensor]):
         (self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32, self.image_app1_mask_64,
          self.image_app2_mask_64, self.image_struct_mask_64) = masks
+        self.visualize_masks()  # Visualize masks when they are set, new function
+
+        # Call save_segmented_objects to save masks right after they are set
+        segmented_masks = [self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32,
+                           self.image_app1_mask_64, self.image_app2_mask_64, self.image_struct_mask_64]
+        self.save_segmented_objects(segmented_masks, "./segmentation_outputs")
+
+    def set_masks_32_64(self, masks_32: List[torch.Tensor], masks_64: List[torch.Tensor]):
+        self.image_app1_mask_32 = masks_32[0]
+        self.image_app2_mask_32 = masks_32[1]
+        self.image_struct_mask_32 = masks_32[2]
+        self.image_app1_mask_64 = masks_64[0]
+        self.image_app2_mask_64 = masks_64[1]
+        self.image_struct_mask_64 = masks_64[2]
         self.visualize_masks()  # Visualize masks when they are set, new function
 
         # Call save_segmented_objects to save masks right after they are set
@@ -91,7 +130,8 @@ class AppearanceTransferModel:
             if self.config.adain_range.start <= self.step < self.config.adain_range.end:
                 if self.config.use_masked_adain:
                     latents[OUT_INDEX] = masked_adain(latents[OUT_INDEX], latents[STYLE1_INDEX], latents[STYLE2_INDEX],
-                                                      self.image_struct_mask_64, self.image_app1_mask_64, self.image_app2_mask_64)
+                                                      self.image_struct_mask_64, self.image_app1_mask_64,
+                                                      self.image_app2_mask_64)
                 else:
                     latents[OUT_INDEX] = adain(latents[OUT_INDEX], latents[STYLE1_INDEX], latents[STYLE2_INDEX])
 
@@ -162,16 +202,18 @@ class AppearanceTransferModel:
                             key[OUT_INDEX] = key[STRUCT_INDEX]
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
-                            split_attn = True
-                            #key, value = masked_cross_attn_keys(query, key, value)
+                            #HELLO TEST
+                            split_q = False
+                            #key, value = masked_cross_attn_keys(query, key, value, is_cross)
                             # Inject the appearance's keys and values
                             #key[OUT_INDEX] = key[STYLE1_INDEX]
                             #value[OUT_INDEX] = value[STYLE1_INDEX]
+                            a=1
                 #           # value[OUT_INDEX] = value[STYLE1_INDEX]
+
                 query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
                 key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
                 value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-                edit_map = perform_swap and model_self.enable_edit and should_mix
 
                 # Compute the cross attention and apply our contrasting operation
                 hidden_states, attn_weight = attention_utils.compute_attention(query, key, value, is_cross, split_attn, edit_map, model_self)
