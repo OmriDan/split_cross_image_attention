@@ -11,15 +11,15 @@ class Range(NamedTuple):
 @dataclass
 class RunConfig:
     # 1st Appearance image path
-    app1_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/dalmatian.png')
+    app1_image_path: Path = Path('/mnt/sda1/OmriD/notebooks/inputs/dalmatian.png')
     # 2nd Appearance image path
-    app2_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/red_cat.png')
+    app2_image_path: Path = Path('/mnt/sda1/OmriD/notebooks/inputs/red_cat.png')
     # Struct image path
-    struct_image_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/notebooks/inputs/cat_and_dog3.png')
+    struct_image_path: Path = Path('/mnt/sda1/OmriD/notebooks/inputs/cat_and_dog4.png')
     # Domain name (e.g., buildings, animals)
     domain_name: Optional[str] = 'animal' #None
     # Output path
-    output_path: Path = Path('/media/zrom/DATA/OmriDan/image_composition_diffusion/output') #Path('./output')
+    output_path: Path = Path('/mnt/sda1/OmriD/output') #Path('./output')
     # Random seed
     seed: int = 42
     # Input prompt for inversion (will use domain name as default)
