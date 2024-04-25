@@ -161,10 +161,11 @@ class AppearanceTransferModel:
                             key[OUT_INDEX] = key[STRUCT_INDEX]
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
+                            key, value = masked_cross_attn_keys(query, key, value, is_cross)
                             # Inject the appearance's keys and values
-                            test_mask = torch.zeros_like(key[OUT_INDEX])
-                            key[OUT_INDEX] = key[STYLE2_INDEX]
-                            value[OUT_INDEX] = value[STYLE2_INDEX]
+                            #key[OUT_INDEX] = key[STYLE1_INDEX]
+                            #value[OUT_INDEX] = value[STYLE1_INDEX]
+                            a=1
                 #           # value[OUT_INDEX] = value[STYLE1_INDEX]
 
                 query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
@@ -259,8 +260,6 @@ class AppearanceTransferModel:
             key[OUT_INDEX] = key[OUT_INDEX] * inv_binary_mask_appearance1 + key[STYLE1_INDEX] * binary_mask_appearance1 # adding k of style1
             value[OUT_INDEX] = value[OUT_INDEX] * inv_binary_mask_appearance1 + value[STYLE1_INDEX] * binary_mask_appearance1 # adding v of style1
             # Using k,v from style 2 on object 2
-            key[OUT_INDEX] = key[OUT_INDEX] * inv_binary_mask_appearance2 + key[STYLE2_INDEX] * binary_mask_appearance2
-            value[OUT_INDEX] = value[OUT_INDEX] * inv_binary_mask_appearance2 + value[STYLE2_INDEX] * binary_mask_appearance2
             key[OUT_INDEX] = key[OUT_INDEX] * inv_binary_mask_appearance2 + key[STYLE2_INDEX] * binary_mask_appearance2 # adding k of style2
             value[OUT_INDEX] = value[OUT_INDEX] * inv_binary_mask_appearance2 + value[STYLE2_INDEX] * binary_mask_appearance2 # adding v of style2
 
