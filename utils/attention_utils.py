@@ -1,7 +1,10 @@
 import math
 import torch
+from torchvision import transforms
+import numpy as np
+from matplotlib import pyplot as plt
 
-from constants import OUT_INDEX
+from constants import *
 
 
 def should_mix_keys_and_values(model, hidden_states: torch.Tensor) -> bool:
@@ -35,3 +38,105 @@ def enhance_tensor(tensor: torch.Tensor, contrast_factor: float = 1.67) -> torch
     """ Compute the attention map contrasting. """
     adjusted_tensor = (tensor - tensor.mean(dim=-1)) * contrast_factor + tensor.mean(dim=-1)
     return adjusted_tensor
+
+
+def compute_attention(Q, K, V, is_cross, split_attn, edit_map, model_self):
+    if not split_attn:
+        hidden_states, attn_weight = compute_scaled_dot_product_attention(Q, K, V, edit_map=edit_map,
+                                                                          is_cross=is_cross, contrast_strength=model_self.config.contrast_strength)
+    else:
+        hidden_states, attn_weight = split_attention(Q,K,V,masks=load_masks(res=Q.shape[2]))
+    return hidden_states, attn_weight
+
+
+
+def split_attention(query, key, value, masks, edit_map=False, is_cross=False, contrast_strength=1.0):
+    # calculate all but OUT_INDEX attention as usual
+    query_without_out, key_without_out, value_without_out = query[OUT_INDEX+1:], key[OUT_INDEX+1:], value[OUT_INDEX+1:]
+    attn_weight_without_out = torch.softmax((query_without_out @ key_without_out.transpose(-2, -1) / math.sqrt(query_without_out.size(-1))), dim=-1)
+    hidden_state_without_out = attn_weight_without_out @ value_without_out
+
+
+    # Get the binary masks of the objects in the image
+    (binary_mask_appearance1, binary_mask_appearance2, binary_mask_struct,
+    inv_binary_mask_struct, inv_binary_mask_appearance1, inv_binary_mask_appearance2) = masks
+
+    query_out, key_out, v_out = query[OUT_INDEX], key[OUT_INDEX], value[OUT_INDEX]
+    query_out, key_out, v_out = query_out.unsqueeze(0), key_out.unsqueeze(0), v_out.unsqueeze(0)
+    query_object1 = torch.zeros_like(query_out)
+    query_object2 = torch.zeros_like(query_out)
+    struct_mask1 = torch.zeros_like(binary_mask_struct)
+    struct_mask2 = torch.zeros_like(binary_mask_struct)
+    inv_struct_mask1 = torch.zeros_like(inv_binary_mask_struct)
+    inv_struct_mask2 = torch.zeros_like(inv_binary_mask_struct)
+
+    if query_out.ndim == 4:
+        mid_index = query_out.shape[2] // 2
+    else:
+        raise Exception
+
+    # Splitting the query and the binary masks to 2 objects
+    struct_mask1[:mid_index] = binary_mask_struct[:mid_index]
+    inv_struct_mask1[:mid_index] = inv_binary_mask_struct[:mid_index]
+    struct_mask2[mid_index:] = binary_mask_struct[mid_index:]
+    inv_struct_mask2[mid_index:] = inv_binary_mask_struct[mid_index:]
+    query_object1 = query_out * inv_struct_mask2
+    query_object1[query_object1 == 0] = -np.inf
+    query_object2 = query_out * inv_struct_mask1 # Taking all the query vals: # query_out[:, :, mid_index:, :]
+    query_object2[query_object2 == 0] = -np.inf
+
+    # Using k,v from style 1 on object 1
+    key_out1 = (key[OUT_INDEX] * inv_binary_mask_appearance1 + key[
+        STYLE1_INDEX] * binary_mask_appearance1).unsqueeze(0)  # adding k of style1
+    value_out1 = (value[OUT_INDEX] * inv_binary_mask_appearance1 + value[
+        STYLE1_INDEX] * binary_mask_appearance1).unsqueeze(0)  # adding v of style1
+    # Using k,v from style 2 on object 2
+    key_out2 = (key[OUT_INDEX] * inv_binary_mask_appearance2 + key[
+        STYLE2_INDEX] * binary_mask_appearance2).unsqueeze(0)   # adding k of style2
+    value_out2 = (value[OUT_INDEX] * inv_binary_mask_appearance2 + value[
+        STYLE2_INDEX] * binary_mask_appearance2).unsqueeze(0)   # adding v of style2
+    # Attention calculation for object 1
+    attn_weight1 = torch.softmax(
+        (query_object1 @ key_out1.transpose(-2, -1) / math.sqrt(query_object1.size(-1))), dim=-1)
+    hidden_state1 = attn_weight1 @ value_out1
+    # Attention calculation for object 2
+    attn_weight2 = torch.softmax(
+        (query_object2 @ key_out2.transpose(-2, -1) / math.sqrt(query_object2.size(-1))), dim=-1)
+    hidden_state2 = attn_weight2 @ value_out2
+
+    attn_weight_out = attn_weight1 + attn_weight2
+    hidden_state_out = hidden_state1 + hidden_state2
+    hidden_states = torch.cat((hidden_state_out, hidden_state_without_out), dim=0)
+    attn_weight = torch.cat((attn_weight_out, attn_weight_without_out), dim=0)
+
+    if edit_map and not is_cross:
+        attn_weight[OUT_INDEX] = torch.stack([
+            torch.clip(enhance_tensor(attn_weight[OUT_INDEX][head_idx], contrast_factor=contrast_strength),
+                       min=0.0, max=1.0)
+            for head_idx in range(attn_weight.shape[1])
+        ])
+
+    return hidden_states, attn_weight
+
+
+def load_masks(res):
+    convert_tensor = transforms.ToTensor()
+    mask_style1_32 = convert_tensor(np.load("masks/cross_attention_style1_mask_resolution_32.npy"))
+    mask_style2_32 = convert_tensor(np.load("masks/cross_attention_style2_mask_resolution_32.npy"))
+    mask_struct_32 = convert_tensor(np.load("masks/cross_attention_structural_mask_resolution_32.npy"))
+    mask_style1_64 = convert_tensor(np.load("masks/cross_attention_style1_mask_resolution_64.npy"))
+    mask_style2_64 = convert_tensor(np.load("masks/cross_attention_style2_mask_resolution_64.npy"))
+    mask_struct_64 = convert_tensor(np.load("masks/cross_attention_structural_mask_resolution_64.npy"))
+    if res == 32 ** 2:
+        binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = mask_struct_32, mask_style1_32, mask_style2_32,
+    elif res == 64 ** 2:
+        binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = mask_struct_64, mask_style1_64, mask_style2_64
+    else:
+        return
+    binary_mask_appearance1 = binary_mask_appearance1.squeeze().T.flatten().view(-1, 1).to('cuda')
+    binary_mask_appearance2 = binary_mask_appearance2.squeeze().T.flatten().view(-1, 1).to('cuda')
+    binary_mask_struct = binary_mask_struct.squeeze().T.flatten().view(-1, 1).to('cuda')
+    inv_binary_mask_struct = (~binary_mask_struct + 2).view(-1, 1).to('cuda')
+    inv_binary_mask_appearance1 = (~binary_mask_appearance1 + 2).view(-1, 1).to('cuda')
+    inv_binary_mask_appearance2 = (~binary_mask_appearance2 + 2).view(-1, 1).to('cuda')
+    return binary_mask_appearance1, binary_mask_appearance2, binary_mask_struct, inv_binary_mask_struct, inv_binary_mask_appearance1, inv_binary_mask_appearance2

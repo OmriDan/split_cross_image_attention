@@ -1,20 +1,7 @@
-# def masked_adain(content_feat, style1_feat, style2_feat, content_mask, style1_mask, style2_mask):
-#     assert ((content_feat.size()[:2] == style1_feat.size()[:2]) and (content_feat.size()[:2] == style2_feat.size()[:2]))
-#     size = content_feat.size()
-#     style1_mean, style1_std = calc_mean_std(style1_feat, mask=style1_mask)
-#     style2_mean, style2_std = calc_mean_std(style2_feat, mask=style2_mask)
-#     content_mean, content_std = calc_mean_std(content_feat, mask=content_mask)
-#     normalized_feat = (content_feat - content_mean.expand(size)) / content_std.expand(size)
-#     style1_normalized_feat = normalized_feat * style1_std.expand(size) + style1_mean.expand(size)
-#     style2_normalized_feat = normalized_feat * style2_std.expand(size) + style2_mean.expand(size)
-#     print(content_mask)
-#     print(f"content_mask shape: {content_mask.shape} ")
-#     print(f"content_mask type: {type(content_mask)} ")
-#     return content_feat * (1 - content_mask) + style1_normalized_feat * content_mask  #  style2_normalized_feat
 import torch
 
 
-def masked_adain(content_feat, style1_feat, style2_feat, content_mask, style1_mask, style2_mask):
+def masked_adain_half_mask(content_feat, style1_feat, style2_feat, content_mask, style1_mask, style2_mask):
     assert ((content_feat.size()[:2] == style1_feat.size()[:2]) and (content_feat.size()[:2] == style2_feat.size()[:2]))
     size = content_feat.size()
 
@@ -42,6 +29,20 @@ def masked_adain(content_feat, style1_feat, style2_feat, content_mask, style1_ma
                 1 - content_mask) + style1_normalized_feat * left_mask + style2_normalized_feat * right_mask
     return combined_feat
 
+
+def masked_adain(content_feat, style1_feat, style2_feat, content_mask, style1_mask, style2_mask):
+    assert ((content_feat.size()[:2] == style1_feat.size()[:2]) and (content_feat.size()[:2] == style2_feat.size()[:2]))
+    size = content_feat.size()
+    style1_mean, style1_std = calc_mean_std(style1_feat, mask=style1_mask)
+    style2_mean, style2_std = calc_mean_std(style2_feat, mask=style2_mask)
+    content_mean, content_std = calc_mean_std(content_feat, mask=content_mask)
+    normalized_feat = (content_feat - content_mean.expand(size)) / content_std.expand(size)
+    style1_normalized_feat = normalized_feat * style1_std.expand(size) + style1_mean.expand(size)
+    style2_normalized_feat = normalized_feat * style2_std.expand(size) + style2_mean.expand(size)
+    #print(content_mask)
+    #print(f"content_mask shape: {content_mask.shape} ")
+    #print(f"content_mask type: {type(content_mask)} ")
+    return content_feat * (1 - content_mask) + style1_normalized_feat * content_mask  #  style2_normalized_feat
 
 def adain(content_feat, style1_feat, style2_feat):
     assert ((content_feat.size()[:2] == style1_feat.size()[:2]) and (content_feat.size()[:2] == style2_feat.size()[:2]))

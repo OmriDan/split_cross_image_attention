@@ -8,7 +8,7 @@ from torchvision import transforms
 from constants import OUT_INDEX, STRUCT_INDEX, STYLE1_INDEX, STYLE2_INDEX
 from models.stable_diffusion import CrossImageAttentionStableDiffusionPipeline
 from utils import attention_utils
-from utils.adain import masked_adain, adain
+from utils.adain import masked_adain, adain, masked_adain_half_mask
 from utils.model_utils import get_stable_diffusion_model
 from utils.segmentation import Segmentor
 from utils.create_attention_maps import create_maps
@@ -162,26 +162,20 @@ class AppearanceTransferModel:
                             key[OUT_INDEX] = key[STRUCT_INDEX]
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
-                            #HELLO TEST
-                            split_q = False
-                            #key, value = masked_cross_attn_keys(query, key, value, is_cross)
+                            split_attn = True
+                            #key, value = masked_cross_attn_keys(query, key, value)
                             # Inject the appearance's keys and values
                             #key[OUT_INDEX] = key[STYLE1_INDEX]
                             #value[OUT_INDEX] = value[STYLE1_INDEX]
-                            a=1
                 #           # value[OUT_INDEX] = value[STYLE1_INDEX]
-
                 query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
                 key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
                 value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
+                edit_map = perform_swap and model_self.enable_edit and should_mix
 
                 # Compute the cross attention and apply our contrasting operation
-                hidden_states, attn_weight = attention_utils.compute_scaled_dot_product_attention(
-                    query, key, value,
-                    edit_map=perform_swap and model_self.enable_edit and should_mix,
-                    is_cross=is_cross,
-                    contrast_strength=model_self.config.contrast_strength,
-                )
+                hidden_states, attn_weight = attention_utils.compute_attention(query, key, value, is_cross, split_attn, edit_map, model_self)
+
                 #if attn_weight.shape[3] == 1024:
                 #    create_maps(attn_weight)
                 # Update attention map for segmentation
@@ -226,7 +220,7 @@ class AppearanceTransferModel:
                 cross_att_count += register_recr(net[1], 0, "up")
             elif "mid" in net[0]:
                 cross_att_count += register_recr(net[1], 0, "mid")
-        def masked_cross_attn_keys(query, key, value,is_cross=False):
+        def masked_cross_attn_keys(query, key, value):
 
             #key[OUT_INDEX] = key[OUT_INDEX] + torch.Tensor([float('-inf')]) * binary_mask_appearance2 # masking style2
             #key[OUT_INDEX] = key[OUT_INDEX] + torch.Tensor([float('-inf')]) * binary_mask_appearance1 # masking style1
@@ -235,8 +229,6 @@ class AppearanceTransferModel:
            #     query, key, value, is_cross=is_cross)
 
             convert_tensor = transforms.ToTensor()
-            #model_self.segmentor.update_attention(attn_weight, is_cross=False)  # check if its not damaging our atten. Maybe is_cross=True?
-            #mask_style1_32, mask_style2_32, mask_struct_32, mask_style1_64, mask_style2_64, mask_struct_64 = self.segmentor.get_object_masks(is_cross=False, use_cluster=False)
             mask_style1_32 = convert_tensor(np.load("masks/cross_attention_style1_mask_resolution_32.npy"))
             mask_style2_32 = convert_tensor(np.load("masks/cross_attention_style2_mask_resolution_32.npy"))
             mask_struct_32 = convert_tensor(np.load("masks/cross_attention_structural_mask_resolution_32.npy"))
@@ -250,6 +242,8 @@ class AppearanceTransferModel:
                 binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = mask_style1_64, mask_style2_64, mask_struct_64
             else:
                 return key, value
+
+
             binary_mask_appearance1 = binary_mask_appearance1.squeeze().flatten()
             binary_mask_appearance2 = binary_mask_appearance2.squeeze().flatten()
             inv_binary_mask_appearance1 = np.bitwise_not(binary_mask_appearance1) + 2
