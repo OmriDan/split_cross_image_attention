@@ -88,10 +88,12 @@ def split_attention(query, key, value, masks, edit_map=False, is_cross=False, co
     # Attention calculation for object 1
     attn_weight1 = torch.softmax(
         (query_object1 @ key_out1.transpose(-2, -1) / math.sqrt(query_object1.size(-1))), dim=-1)
+    attn_weight1[torch.isnan(attn_weight1)] = 0
     hidden_state1 = attn_weight1 @ value_out1
     # Attention calculation for object 2
     attn_weight2 = torch.softmax(
         (query_object2 @ key_out2.transpose(-2, -1) / math.sqrt(query_object2.size(-1))), dim=-1)
+    attn_weight2[torch.isnan(attn_weight2)] = 0
     hidden_state2 = attn_weight2 @ value_out2
 
     attn_weight_out = attn_weight1 + attn_weight2
