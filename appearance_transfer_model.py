@@ -202,13 +202,11 @@ class AppearanceTransferModel:
                             key[OUT_INDEX] = key[STRUCT_INDEX]
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
-                            #HELLO TEST
                             split_attn = True
                             #key, value = masked_cross_attn_keys(query, key, value, is_cross)
                             # Inject the appearance's keys and values
                             #key[OUT_INDEX] = key[STYLE1_INDEX]
                             #value[OUT_INDEX] = value[STYLE1_INDEX]
-                            a=1
                 #           # value[OUT_INDEX] = value[STYLE1_INDEX]
 
                 query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
