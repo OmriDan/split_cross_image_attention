@@ -191,7 +191,7 @@ class AppearanceTransferModel:
                 inner_dim = key.shape[-1]
                 head_dim = inner_dim // attn.heads
                 should_mix = False
-
+                split_attn = False
                 # Potentially apply our cross image attention operation
                 # To do so, we need to be in a self-attention layer in the decoder part of the denoising network
                 if perform_swap and not is_cross and "up" in self.place_in_unet and model_self.enable_edit:
@@ -203,7 +203,7 @@ class AppearanceTransferModel:
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
                             #HELLO TEST
-                            split_q = False
+                            split_attn = True
                             #key, value = masked_cross_attn_keys(query, key, value, is_cross)
                             # Inject the appearance's keys and values
                             #key[OUT_INDEX] = key[STYLE1_INDEX]
@@ -216,6 +216,7 @@ class AppearanceTransferModel:
                 value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
 
                 # Compute the cross attention and apply our contrasting operation
+                edit_map = perform_swap and model_self.enable_edit and should_mix
                 hidden_states, attn_weight = attention_utils.compute_attention(query, key, value, is_cross, split_attn, edit_map, model_self)
 
                 #if attn_weight.shape[3] == 1024:
