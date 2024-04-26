@@ -65,10 +65,8 @@ def split_attention(query, key, value, masks, edit_map=False, is_cross=False, co
     query_out, key_out, v_out = query_out.unsqueeze(0), key_out.unsqueeze(0), v_out.unsqueeze(0)
     query_object1 = torch.zeros_like(query_out)
     query_object2 = torch.zeros_like(query_out)
-    struct_mask1 = torch.zeros_like(binary_mask_struct)
-    struct_mask2 = torch.zeros_like(binary_mask_struct)
-    inv_struct_mask1 = torch.zeros_like(inv_binary_mask_struct)
-    inv_struct_mask2 = torch.zeros_like(inv_binary_mask_struct)
+    struct_mask1, struct_mask2 = binary_struct_masks
+    inv_struct_mask1, inv_struct_mask2 = inv_binary_struct_masks
 
     if query_out.ndim == 4:
         mid_index = query_out.shape[2] // 2
@@ -76,25 +74,17 @@ def split_attention(query, key, value, masks, edit_map=False, is_cross=False, co
         raise Exception
 
     # Splitting the query and the binary masks to 2 objects
-    struct_mask1[:mid_index] = binary_mask_struct[:mid_index]
-    inv_struct_mask1[:mid_index] = inv_binary_mask_struct[:mid_index]
-    struct_mask2[mid_index:] = binary_mask_struct[mid_index:]
-    inv_struct_mask2[mid_index:] = inv_binary_mask_struct[mid_index:]
     query_object1 = query_out * inv_struct_mask2
-    query_object1[query_object1 == 0] = -np.inf
+    query_object1[query_object1 == 0] = -float("Inf")
     query_object2 = query_out * inv_struct_mask1 # Taking all the query vals: # query_out[:, :, mid_index:, :]
-    query_object2[query_object2 == 0] = -np.inf
+    query_object2[query_object2 == 0] = -float("Inf")
 
-    # Using k,v from style 1 on object 1
-    key_out1 = (key[OUT_INDEX] * inv_binary_mask_appearance1 + key[
-        STYLE1_INDEX] * binary_mask_appearance1).unsqueeze(0)  # adding k of style1
-    value_out1 = (value[OUT_INDEX] * inv_binary_mask_appearance1 + value[
-        STYLE1_INDEX] * binary_mask_appearance1).unsqueeze(0)  # adding v of style1
+    # Using k,v from style 1 on object 1 might be key[mask] = OUT/VAL
+    key_out1 = key[STYLE1_INDEX]  # adding k of style1 maybe unsqueeze?
+    value_out1 = value[STYLE1_INDEX] # adding v of style1
     # Using k,v from style 2 on object 2
-    key_out2 = (key[OUT_INDEX] * inv_binary_mask_appearance2 + key[
-        STYLE2_INDEX] * binary_mask_appearance2).unsqueeze(0)   # adding k of style2
-    value_out2 = (value[OUT_INDEX] * inv_binary_mask_appearance2 + value[
-        STYLE2_INDEX] * binary_mask_appearance2).unsqueeze(0)   # adding v of style2
+    key_out2 = key[STYLE2_INDEX]  # adding k of style2
+    value_out2 = value[STYLE2_INDEX]  # adding v of style2
     # Attention calculation for object 1
     attn_weight1 = torch.softmax(
         (query_object1 @ key_out1.transpose(-2, -1) / math.sqrt(query_object1.size(-1))), dim=-1)
