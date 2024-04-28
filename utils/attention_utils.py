@@ -43,9 +43,10 @@ def enhance_tensor(tensor: torch.Tensor, contrast_factor: float = 1.67) -> torch
 def compute_attention(Q, K, V, is_cross, split_attn, edit_map, model_self):
     if not split_attn:
         hidden_states, attn_weight = compute_scaled_dot_product_attention(Q, K, V, edit_map=edit_map,
-                                                                          is_cross=is_cross, contrast_strength=model_self.config.contrast_strength)
+                                                                          is_cross=is_cross,
+                                                                          contrast_strength=model_self.config.contrast_strength)
     else:
-        hidden_states, attn_weight = split_attention(Q,K,V,masks=load_masks(res=Q.shape[2]))
+        hidden_states, attn_weight = split_attention(Q, K, V, masks=load_masks(model_self, res=Q.shape[2]))
     return hidden_states, attn_weight
 
 
@@ -121,14 +122,13 @@ def split_attention(query, key, value, masks, edit_map=False, is_cross=False, co
     return hidden_states, attn_weight
 
 
-def load_masks(res):
-    convert_tensor = transforms.ToTensor()
-    mask_style1_32 = convert_tensor(np.load("masks/cross_attention_style1_mask_resolution_32.npy"))
-    mask_style2_32 = convert_tensor(np.load("masks/cross_attention_style2_mask_resolution_32.npy"))
-    mask_struct_32 = convert_tensor(np.load("masks/cross_attention_structural_mask_resolution_32.npy"))
-    mask_style1_64 = convert_tensor(np.load("masks/cross_attention_style1_mask_resolution_64.npy"))
-    mask_style2_64 = convert_tensor(np.load("masks/cross_attention_style2_mask_resolution_64.npy"))
-    mask_struct_64 = convert_tensor(np.load("masks/cross_attention_structural_mask_resolution_64.npy"))
+def load_masks(model_self, res):
+    mask_style1_32 = model_self.image_app1_mask_32
+    mask_style2_32 = model_self.image_app2_mask_32
+    mask_struct_32 = model_self.image_struct_mask_32
+    mask_style1_64 = model_self.image_app1_mask_64
+    mask_style2_64 = model_self.image_app2_mask_64
+    mask_struct_64 = model_self.image_struct_mask_64
     if res == 32 ** 2:
         binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = \
             mask_struct_32.squeeze(), mask_style1_32.squeeze(), mask_style2_32.squeeze()
