@@ -126,6 +126,13 @@ class AppearanceTransferModel:
             if self.config.use_masked_adain and self.step == self.config.adain_range.start:
                 masks = self.segmentor.get_object_masks()
                 self.set_masks(masks)
+                masks = self.segmentor.get_object_masks(is_cross=True, step=self.step)
+                self.set_masks(masks)
+                print("set masks at step: ", self.step)
+            else:
+                if self.step % 5 == 0:
+                    masks = self.segmentor.get_object_masks(is_cross=True, step=self.step)
+                    self.set_masks(masks)
             # Apply AdaIN operation using the computed masks
             if self.config.adain_range.start <= self.step < self.config.adain_range.end:
                 if self.config.use_masked_adain:
@@ -217,12 +224,11 @@ class AppearanceTransferModel:
                 edit_map = perform_swap and model_self.enable_edit and should_mix
                 hidden_states, attn_weight = attention_utils.compute_attention(query, key, value, is_cross, split_attn, edit_map, model_self)
 
-                #if attn_weight.shape[3] == 1024:
-                #    create_maps(attn_weight)
                 # Update attention map for segmentation
-                if model_self.config.use_masked_adain and model_self.step == model_self.config.adain_range.start - 1:
-                    model_self.segmentor.update_attention(attn_weight, is_cross)
-
+                # if model_self.config.use_masked_adain and model_self.step == model_self.config.adain_range.start - 1:
+                model_self.segmentor.update_attention(attn_weight, is_cross)
+                # else:
+                #     model_self.segmentor.update_attention(attn_weight, is_cross)
                 hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
                 hidden_states = hidden_states.to(query[OUT_INDEX].dtype)
 
