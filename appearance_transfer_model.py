@@ -69,7 +69,7 @@ class AppearanceTransferModel:
     def set_masks(self, masks: List[torch.Tensor]):
         (self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32, self.image_app1_mask_64,
          self.image_app2_mask_64, self.image_struct_mask_64) = masks
-        self.visualize_masks()  # Visualize masks when they are set, new function
+        #self.visualize_masks()  # Visualize masks when they are set, new function
 
         # Call save_segmented_objects to save masks right after they are set
         segmented_masks = [self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32,
@@ -83,7 +83,7 @@ class AppearanceTransferModel:
         self.image_app1_mask_64 = masks_64[0]
         self.image_app2_mask_64 = masks_64[1]
         self.image_struct_mask_64 = masks_64[2]
-        self.visualize_masks()  # Visualize masks when they are set, new function
+        #self.visualize_masks()  # Visualize masks when they are set, new function
 
         # Call save_segmented_objects to save masks right after they are set
         segmented_masks = [self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32,
