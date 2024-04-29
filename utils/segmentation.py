@@ -171,11 +171,34 @@ class Segmentor:
             mask[clusters == c] = 1 if c in obj_segments else 0
         return torch.from_numpy(mask).to("cuda")
 
-    def split_connected_components_and_save(self, mask, name, step, model_self=None, res=None, object_value=1, save_path='mask_fig/',
-                                            connectivity=1, use_morphology=True):
+    def split_structure_mask(self, res=None):
+        np.random.seed(1)
+        self_attn = self.self_attention_32 if res == 32 else self.self_attention_64
+        struct_attn = self_attn[STRUCT_INDEX].mean(dim=0).cpu().numpy()
+        if struct_attn.ndim == 1:  # might need to remove
+            struct_attn = struct_attn.reshape(-1, 1)
+        struct_kmeans = KMeans(n_clusters=self.num_segments, n_init=10).fit(struct_attn)
+        struct_clusters = struct_kmeans.labels_.reshape(res, res)
+
+        # Identify the background cluster
+        cluster_sizes = np.bincount(struct_clusters.flatten())
+        background_cluster = np.argmax(cluster_sizes)
+
+        # Creating binary masks for each cluster
+        binary_masks = np.zeros((self.num_segments, res, res))
+        for i in range(self.num_segments):
+            binary_masks[i] = (struct_clusters == i)
+
+        # Swap to make the first mask the background
+        if background_cluster != 0:
+            binary_masks[[0, background_cluster]] = binary_masks[[background_cluster, 0]]
+        for i in range(self.num_segments):
+            binary_masks[i] = torch.from_numpy(binary_masks[i])
+        return binary_masks[0], binary_masks[1], binary_masks[2]
+
+    def split_connected_components_and_save(self, mask, name, step, model_self=None, res=None, object_value=1,
+                                            save_path='mask_fig/', connectivity=1, use_morphology=True):
         mask_np = mask.cpu().numpy()
-        if step==10:
-            a=1
         if mask_np.sum() == 0: # mask is completely empty
             if res==32:
                 return model_self.object1_mask_32, model_self.object2_mask_32
@@ -231,38 +254,7 @@ class Segmentor:
                 plt.savefig(f"{save_path}{name}_{step}_object{i}.png")
         plt.close(fig)
         return tuple(masks)
-    #
-    # def split_connected_components_and_save_1(self, mask, name, step, object_value=1, save_path='mask_fig/',
-    #                                         connectivity=1, use_morphology=True):
-    #     print(f"step: {step}")
-    #     mask_np = mask.cpu().numpy()
-    #     # Check and apply morphological operations to separate components
-    #     if use_morphology:
-    #         # Erode to separate components
-    #         eroded_mask = binary_erosion(mask_np == object_value, structure=np.ones((3, 3)))
-    #         # Dilate to restore size but prevent re-merging of close components
-    #         processed_mask = binary_dilation(eroded_mask, structure=np.ones((2, 2)))
-    #     else:
-    #         processed_mask = mask_np == object_value
-    #     # Find connected components with specified connectivity
-    #     labeled_mask, num_features = label(processed_mask, structure=np.ones((3, 3)) if connectivity == 8 else None)
-    #     if num_features < 2:
-    #         print("Less than two separate objects found.")
-    #         return None, None
-    #     fig, axes = plt.subplots(1, min(num_features, 2), figsize=(12, 6))
-    #     masks = []
-    #     for i in range(1, min(num_features, 2) + 1):
-    #         mask_i = torch.from_numpy((labeled_mask == i).astype(int))
-    #         masks.append(mask_i)
-    #         ax = axes[i - 1] if num_features > 1 else axes
-    #         ax.imshow(mask_i.cpu().numpy(), cmap='gray')
-    #         ax.axis('off')
-    #         ax.set_title(f'Object {i} Mask')
-    #         if i == 2:
-    #             plt.savefig(f"{save_path}{name}_{step}_object{i}.png")
-    #     plt.close(fig)
-    #     return tuple(masks)
-
+        
     def get_object_masks(self, is_cross=True, step=1, use_cluster = True) -> Tuple[torch.Tensor]:
         mask_style1_32, mask_style2_32, mask_struct_32, mask_style1_64, mask_style2_64, mask_struct_64 = tuple(torch.empty(0) for _ in range(6))
         flag_32 = hasattr(self, 'self_attention_32') or hasattr(self, 'cross_attention_32')

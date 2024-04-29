@@ -209,21 +209,25 @@ class AppearanceTransferModel:
                         if model_self.step % 5 == 0 and model_self.step < 40:
                             # Moved from __call__
                             if model_self.image_struct_mask_32 is not None:
-                                model_self.object1_mask_32, model_self.object2_mask_32 = model_self.segmentor.split_connected_components_and_save(
-                                    model_self.image_struct_mask_32,
-                                    name="model_self.image_struct_mask_32",
-                                    model_self=model_self,
-                                    res=32,
-                                    step=model_self.step)
-                                if model_self.object1_mask_32 is None:
-                                    a=1
+                                # model_self.object1_mask_32, model_self.object2_mask_32 =
+                                # model_self.segmentor.split_connected_components_and_save(
+                                #     model_self.image_struct_mask_32,
+                                #     name="model_self.image_struct_mask_32",
+                                #     model_self=model_self,
+                                #     res=32,
+                                #     step=model_self.step)
+                                _, model_self.object1_mask_32, model_self.object2_mask_32 = (
+                                    model_self.segmentor.split_structure_mask(res=32))
                             if model_self.image_struct_mask_64 is not None:
-                                model_self.object1_mask_64, model_self.object2_mask_64 = model_self.segmentor.split_connected_components_and_save(
-                                    model_self.image_struct_mask_64,
-                                    name="model_self.image_struct_mask_64",
-                                    model_self=model_self,
-                                    res=64,
-                                    step=model_self.step)
+                                # model_self.object1_mask_64, model_self.object2_mask_64 =
+                                # model_self.segmentor.split_connected_components_and_save(
+                                #     model_self.image_struct_mask_64,
+                                #     name="model_self.image_struct_mask_64",
+                                #     model_self=model_self,
+                                #     res=64,
+                                #     step=model_self.step)
+                                _, model_self.object1_mask_64, model_self.object2_mask_64 = (
+                                    model_self.segmentor.split_structure_mask(res=64))
                             # Inject the structure's keys and values
                             key[OUT_INDEX] = key[STRUCT_INDEX]
                             value[OUT_INDEX] = value[STRUCT_INDEX]
@@ -242,7 +246,8 @@ class AppearanceTransferModel:
 
                 # Compute the cross attention and apply our contrasting operation
                 edit_map = perform_swap and model_self.enable_edit and should_mix
-                hidden_states, attn_weight = attention_utils.compute_attention(query, key, value, is_cross, split_attn, edit_map, model_self)
+                hidden_states, attn_weight = attention_utils.compute_attention(query, key, value, is_cross,
+                                                                               split_attn, edit_map, model_self)
 
                 # Update attention map for segmentation
                 model_self.segmentor.update_attention(attn_weight, is_cross)
