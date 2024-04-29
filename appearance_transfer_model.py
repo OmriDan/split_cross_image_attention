@@ -14,6 +14,7 @@ from utils.segmentation import Segmentor
 from utils.create_attention_maps import create_maps
 import numpy as np
 import os
+import datetime
 
 
 class AppearanceTransferModel:
@@ -28,7 +29,9 @@ class AppearanceTransferModel:
         self.image_app1_mask_32, self.image_app1_mask_64 = None, None
         self.image_app2_mask_32, self.image_app2_mask_64 = None, None
         self.image_struct_mask_32, self.image_struct_mask_64 = None, None
-        self.segmentor = Segmentor(prompt=config.prompt, object_nouns=[config.object_noun])
+        self.object1_mask_32, self.object1_mask_64 = None, None
+        self.object2_mask_32, self.object2_mask_64 = None, None
+        # self.segmentor = Segmentor(prompt=config.prompt, object_nouns=[config.object_noun])
         self.register_attention_control()
         self.enable_edit = False
         self.step = 0
@@ -124,8 +127,6 @@ class AppearanceTransferModel:
             self.step = st
             # Compute the masks using prompt mixing self-segmentation and use the masks for AdaIN operation
             if self.config.use_masked_adain and self.step == self.config.adain_range.start:
-                masks = self.segmentor.get_object_masks()
-                self.set_masks(masks)
                 masks = self.segmentor.get_object_masks(is_cross=True, step=self.step)
                 self.set_masks(masks)
                 print("set masks at step: ", self.step)
@@ -192,6 +193,7 @@ class AppearanceTransferModel:
                 elif attn.norm_cross:
                     encoder_hidden_states = attn.norm_encoder_hidden_states(encoder_hidden_states)
 
+
                 key = attn.to_k(encoder_hidden_states)
                 value = attn.to_v(encoder_hidden_states)
 
@@ -205,15 +207,33 @@ class AppearanceTransferModel:
                     if attention_utils.should_mix_keys_and_values(model_self, hidden_states):
                         should_mix = True
                         if model_self.step % 5 == 0 and model_self.step < 40:
+                            # Moved from __call__
+                            if model_self.image_struct_mask_32 is not None:
+                                model_self.object1_mask_32, model_self.object2_mask_32 = model_self.segmentor.split_connected_components_and_save(
+                                    model_self.image_struct_mask_32,
+                                    name="model_self.image_struct_mask_32",
+                                    model_self=model_self,
+                                    res=32,
+                                    step=model_self.step)
+                                if model_self.object1_mask_32 is None:
+                                    a=1
+                            if model_self.image_struct_mask_64 is not None:
+                                model_self.object1_mask_64, model_self.object2_mask_64 = model_self.segmentor.split_connected_components_and_save(
+                                    model_self.image_struct_mask_64,
+                                    name="model_self.image_struct_mask_64",
+                                    model_self=model_self,
+                                    res=64,
+                                    step=model_self.step)
                             # Inject the structure's keys and values
                             key[OUT_INDEX] = key[STRUCT_INDEX]
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
                             split_attn = True
+
                             #key, value = masked_cross_attn_keys(query, key, value, is_cross)
                             # Inject the appearance's keys and values
-                            #key[OUT_INDEX] = key[STYLE1_INDEX]
-                            #value[OUT_INDEX] = value[STYLE1_INDEX]
+                            #key[OUT_INDEX] = key[STYLE2_INDEX]
+                            #value[OUT_INDEX] = value[STYLE2_INDEX]
                 #           # value[OUT_INDEX] = value[STYLE1_INDEX]
 
                 query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
@@ -225,7 +245,6 @@ class AppearanceTransferModel:
                 hidden_states, attn_weight = attention_utils.compute_attention(query, key, value, is_cross, split_attn, edit_map, model_self)
 
                 # Update attention map for segmentation
-                # if model_self.config.use_masked_adain and model_self.step == model_self.config.adain_range.start - 1:
                 model_self.segmentor.update_attention(attn_weight, is_cross)
                 # else:
                 #     model_self.segmentor.update_attention(attn_weight, is_cross)
