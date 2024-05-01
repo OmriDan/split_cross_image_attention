@@ -309,9 +309,6 @@ class Segmentor:
                 self.visualize_cluster_nouns(clusters_struct_64, cluster2noun_64_struct,
                                              f'{title_addition} Structural Clusters Resolution 64 with Nouns', step=step)
 
-            mask_style1_64 = self.create_mask(clusters_style1_64, attn_64, STYLE1_INDEX)
-            mask_style2_64 = self.create_mask(clusters_style2_64, attn_64, STYLE1_INDEX)
-            mask_struct_64 = self.create_mask(clusters_struct_64, attn_64, STRUCT_INDEX)
             mask_style1_64 = self.create_mask(clusters_style1_64, attn_64, STYLE1_INDEX, self.style_num_segments)
             mask_style2_64 = self.create_mask(clusters_style2_64, attn_64, STYLE1_INDEX, self.style_num_segments)
             mask_struct_64 = self.create_mask(clusters_struct_64, attn_64, STRUCT_INDEX, self.struct_num_segments)

@@ -64,23 +64,16 @@ def split_attention(query, key, value, masks, edit_map=False, is_cross=False, co
 
     query_out, key_out, v_out = query[OUT_INDEX], key[OUT_INDEX], value[OUT_INDEX]
     query_out, key_out, v_out = query_out.unsqueeze(0), key_out.unsqueeze(0), v_out.unsqueeze(0)
-    query_object1 = torch.zeros_like(query_out)
-    query_object2 = torch.zeros_like(query_out)
     struct_mask1, struct_mask2 = binary_struct_masks
     inv_struct_mask1, inv_struct_mask2 = inv_binary_struct_masks
     bkg_mask = inv_struct_mask1 | inv_struct_mask2
 
-    if query_out.ndim == 4:
-        mid_index = query_out.shape[2] // 2
-    else:
-        raise Exception
-
     # Splitting the query and the binary masks to 2 objects
-    query_bkg = query_out * bkg_mask
+    query_bkg = (query_out * bkg_mask).float()
     query_bkg[query_bkg == 0] = -float("Inf")
-    query_object1 = query_out * struct_mask1
+    query_object1 = (query_out * struct_mask1).float()
     query_object1[query_object1 == 0] = -float("Inf")
-    query_object2 = query_out * struct_mask2 # Taking all the query vals: # query_out[:, :, mid_index:, :]
+    query_object2 = (query_out * struct_mask2).float()  # Taking all the query vals: # query_out[:, :, mid_index:, :]
     query_object2[query_object2 == 0] = -float("Inf")
 
 
