@@ -3,7 +3,7 @@ import datetime
 import nltk
 from scipy.ndimage import binary_erosion, binary_dilation
 from sklearn.cluster import KMeans
-from constants import STYLE1_INDEX, STRUCT_INDEX, STYLE2_INDEX
+from constants import *
 import torch
 import numpy as np
 from scipy.ndimage import label
@@ -19,9 +19,10 @@ Self-segmentation technique taken from Prompt Mixing: https://github.com/orpatas
 
 class Segmentor:
 
-    def __init__(self, prompt: str, object_nouns: List[str], num_segments: int = 3, res: int = 32):
+    def __init__(self, prompt: str, object_nouns: List[str], struct_num_segments: int = 3, style_num_segments: int = 2, res: int = 32):
         self.prompt = prompt
-        self.num_segments = num_segments
+        self.struct_num_segments = struct_num_segments
+        self.style_num_segments = style_num_segments
         self.resolution = res
         self.object_nouns = object_nouns
         print(object_nouns)
@@ -74,7 +75,7 @@ class Segmentor:
             noun = noun_assignments.get(cluster_id, "BG")
             plt.text(centroid_x, centroid_y, f'{noun[1]}', color='red', ha='center', va='center')
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        if step % 5 == 0:
+        if step % MOD_STEP == 0:
             plt.savefig(f"mask_fig/{title.replace(' ', '_').lower()}_{timestamp}_step_{step}.png")
             plt.close()
         # plt.show()
@@ -86,19 +87,19 @@ class Segmentor:
         style1_attn = self_attn[STYLE1_INDEX].mean(dim=0).cpu().numpy()
         if style1_attn.ndim == 1: # might need to remove
             style1_attn = style1_attn.reshape(-1, 1)
-        style1_kmeans = KMeans(n_clusters=self.num_segments, n_init=10).fit(style1_attn)
+        style1_kmeans = KMeans(n_clusters=self.style_num_segments, n_init=10).fit(style1_attn)
         style1_clusters = style1_kmeans.labels_.reshape(res, res)
 
         style2_attn = self_attn[STYLE2_INDEX].mean(dim=0).cpu().numpy()
         if style2_attn.ndim == 1: # might need to remove
             style2_attn = style2_attn.reshape(-1, 1)
-        style2_kmeans = KMeans(n_clusters=self.num_segments, n_init=10).fit(style2_attn)
+        style2_kmeans = KMeans(n_clusters=self.style_num_segments, n_init=10).fit(style2_attn)
         style2_clusters = style2_kmeans.labels_.reshape(res, res)
 
         struct_attn = self_attn[STRUCT_INDEX].mean(dim=0).cpu().numpy()
         if struct_attn.ndim == 1: # might need to remove
             struct_attn = struct_attn.reshape(-1, 1)
-        struct_kmeans = KMeans(n_clusters=self.num_segments, n_init=10).fit(struct_attn)
+        struct_kmeans = KMeans(n_clusters=self.struct_num_segments, n_init=10).fit(struct_attn)
         struct_clusters = struct_kmeans.labels_.reshape(res, res)
 
         return style1_clusters, style2_clusters, struct_clusters
@@ -119,7 +120,7 @@ class Segmentor:
         with open(f'masks/{file_title}.npy', 'wb') as f:
             np.save(f,mask)
         f.close()
-        if step % 5 == 0:
+        if step % MOD_STEP == 0:
             plt.figure()
             plt.imshow(mask, cmap=cmap)
             plt.colorbar()
@@ -130,7 +131,7 @@ class Segmentor:
             plt.close()
         # plt.show()
 
-    def cluster2noun(self, clusters, cross_attn, attn_index, is_cross=True):
+    def cluster2noun(self, clusters, cross_attn, attn_index, num_segments):
         result = {}
         res = int(cross_attn.shape[2] ** 0.5)
         nouns_indices = [index for (index, word) in self.nouns]
@@ -143,7 +144,7 @@ class Segmentor:
 
         max_score = 0
         all_scores = []
-        for c in range(self.num_segments):
+        for c in range(num_segments):
             cluster_mask = np.zeros_like(clusters)
             cluster_mask[clusters == c] = 1
             score_maps = [cluster_mask * normalized_nouns_maps[:, :, i] for i in range(len(nouns_indices))]
@@ -154,7 +155,7 @@ class Segmentor:
         all_scores.remove(max_score)
         mean_score = sum(all_scores) / len(all_scores)
 
-        for c in range(self.num_segments):
+        for c in range(num_segments):
             cluster_mask = np.zeros_like(clusters)
             cluster_mask[clusters == c] = 1
             score_maps = [cluster_mask * normalized_nouns_maps[:, :, i] for i in range(len(nouns_indices))]
@@ -163,11 +164,11 @@ class Segmentor:
 
         return result
 
-    def create_mask(self, clusters, cross_attention, attn_index):
-        cluster2noun = self.cluster2noun(clusters, cross_attention, attn_index)
+    def create_mask(self, clusters, cross_attention, attn_index, num_segments):
+        cluster2noun = self.cluster2noun(clusters, cross_attention, attn_index, num_segments)
         mask = clusters.copy()
         obj_segments = [c for c in cluster2noun if cluster2noun[c][1] in self.object_nouns]
-        for c in range(self.num_segments):
+        for c in range(num_segments):
             mask[clusters == c] = 1 if c in obj_segments else 0
         return torch.from_numpy(mask).to("cuda")
 
@@ -177,7 +178,7 @@ class Segmentor:
         struct_attn = self_attn[STRUCT_INDEX].mean(dim=0).cpu().numpy()
         if struct_attn.ndim == 1:  # might need to remove
             struct_attn = struct_attn.reshape(-1, 1)
-        struct_kmeans = KMeans(n_clusters=self.num_segments, n_init=10).fit(struct_attn)
+        struct_kmeans = KMeans(n_clusters=self.struct_num_segments, n_init=10).fit(struct_attn)
         struct_clusters = struct_kmeans.labels_.reshape(res, res)
 
         # Identify the background cluster
@@ -185,15 +186,14 @@ class Segmentor:
         background_cluster = np.argmax(cluster_sizes)
 
         # Creating binary masks for each cluster
-        binary_masks = np.zeros((self.num_segments, res, res))
-        for i in range(self.num_segments):
+        binary_masks = np.zeros((self.struct_num_segments, res, res))
+        for i in range(self.struct_num_segments):
             binary_masks[i] = (struct_clusters == i)
 
         # Swap to make the first mask the background
         if background_cluster != 0:
             binary_masks[[0, background_cluster]] = binary_masks[[background_cluster, 0]]
-        for i in range(self.num_segments):
-            binary_masks[i] = torch.from_numpy(binary_masks[i])
+        binary_masks = torch.from_numpy(binary_masks)
         return binary_masks[0], binary_masks[1], binary_masks[2]
 
     def split_connected_components_and_save(self, mask, name, step, model_self=None, res=None, object_value=1,
@@ -250,7 +250,7 @@ class Segmentor:
             ax.imshow(mask_i.cpu().numpy(), cmap='gray')
             ax.axis('off')
             ax.set_title(f'Object {i} Mask')
-            if i == 2 and step % 5 == 0:
+            if i == 2 and step % MOD_STEP == 0:
                 plt.savefig(f"{save_path}{name}_{step}_object{i}.png")
         plt.close(fig)
         return tuple(masks)
@@ -275,9 +275,9 @@ class Segmentor:
             # Get cluster to noun mappings for visualization
             clusters_style1_32, clusters_style2_32, clusters_struct_32 = self.cluster(res=32)
             if use_cluster:
-                cluster2noun_32_style1 = self.cluster2noun(clusters_style1_32, attn_32, STYLE1_INDEX)
-                cluster2noun_32_style2 = self.cluster2noun(clusters_style2_32, attn_32, STYLE2_INDEX)
-                cluster2noun_32_struct = self.cluster2noun(clusters_struct_32, attn_32, STRUCT_INDEX)
+                cluster2noun_32_style1 = self.cluster2noun(clusters_style1_32, attn_32, STYLE1_INDEX, num_segments=self.style_num_segments)
+                cluster2noun_32_style2 = self.cluster2noun(clusters_style2_32, attn_32, STYLE2_INDEX, num_segments=self.style_num_segments)
+                cluster2noun_32_struct = self.cluster2noun(clusters_struct_32, attn_32, STRUCT_INDEX, num_segments=self.struct_num_segments)
                 # Visualize clusters with nouns
                 self.visualize_cluster_nouns(clusters_style1_32, cluster2noun_32_style1,
                                              f'{title_addition} Style1 Clusters Resolution 32 with Nouns step {step}',step=step)
@@ -286,9 +286,9 @@ class Segmentor:
                 self.visualize_cluster_nouns(clusters_struct_32, cluster2noun_32_struct,
                                              f'{title_addition} Structural Clusters Resolution 32 with Nouns step {step}',step=step)
 
-            mask_style1_32 = self.create_mask(clusters_style1_32, attn_32, STYLE1_INDEX)
-            mask_style2_32 = self.create_mask(clusters_style2_32, attn_32, STYLE2_INDEX)
-            mask_struct_32 = self.create_mask(clusters_struct_32, attn_32, STRUCT_INDEX)
+            mask_style1_32 = self.create_mask(clusters_style1_32, attn_32, STYLE1_INDEX, self.style_num_segments)
+            mask_style2_32 = self.create_mask(clusters_style2_32, attn_32, STYLE2_INDEX, self.style_num_segments)
+            mask_struct_32 = self.create_mask(clusters_struct_32, attn_32, STRUCT_INDEX, self.struct_num_segments)
 
             # Visualizing and saving the masks
             self.visualize_masks(mask_style1_32.cpu().numpy(), f'{title_addition} Style1 Mask Resolution 32 step {step}',step=step)
@@ -298,9 +298,9 @@ class Segmentor:
             # Get cluster to noun mappings for visualization
             clusters_style1_64, clusters_style2_64, clusters_struct_64 = self.cluster(res=64)
             if use_cluster:
-                cluster2noun_64_style1 = self.cluster2noun(clusters_style1_64, attn_64, STYLE1_INDEX)
-                cluster2noun_64_style2 = self.cluster2noun(clusters_style2_64, attn_64, STYLE2_INDEX)
-                cluster2noun_64_struct = self.cluster2noun(clusters_struct_64, attn_64, STRUCT_INDEX)
+                cluster2noun_64_style1 = self.cluster2noun(clusters_style1_64, attn_64, STYLE1_INDEX, num_segments=self.style_num_segments)
+                cluster2noun_64_style2 = self.cluster2noun(clusters_style2_64, attn_64, STYLE2_INDEX, num_segments=self.style_num_segments)
+                cluster2noun_64_struct = self.cluster2noun(clusters_struct_64, attn_64, STRUCT_INDEX, num_segments=self.struct_num_segments)
                 # Visualize clusters with nouns
                 self.visualize_cluster_nouns(clusters_style1_64, cluster2noun_64_style1,
                                              f'{title_addition} Style1 Clusters Resolution 64 with Nouns',step=step)
@@ -312,6 +312,9 @@ class Segmentor:
             mask_style1_64 = self.create_mask(clusters_style1_64, attn_64, STYLE1_INDEX)
             mask_style2_64 = self.create_mask(clusters_style2_64, attn_64, STYLE1_INDEX)
             mask_struct_64 = self.create_mask(clusters_struct_64, attn_64, STRUCT_INDEX)
+            mask_style1_64 = self.create_mask(clusters_style1_64, attn_64, STYLE1_INDEX, self.style_num_segments)
+            mask_style2_64 = self.create_mask(clusters_style2_64, attn_64, STYLE1_INDEX, self.style_num_segments)
+            mask_struct_64 = self.create_mask(clusters_struct_64, attn_64, STRUCT_INDEX, self.struct_num_segments)
 
             # Visualizing and saving the masks
             self.visualize_masks(mask_style1_64.cpu().numpy(), f'{title_addition} Style1 Mask Resolution 64', step=step)

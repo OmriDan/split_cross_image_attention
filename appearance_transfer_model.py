@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from config import RunConfig
 from torchvision import transforms
-from constants import OUT_INDEX, STRUCT_INDEX, STYLE1_INDEX, STYLE2_INDEX
+from constants import OUT_INDEX, STRUCT_INDEX, STYLE1_INDEX, STYLE2_INDEX, MOD_STEP
 from models.stable_diffusion import CrossImageAttentionStableDiffusionPipeline
 from utils import attention_utils
 from utils.adain import masked_adain, adain, masked_adain_half_mask
@@ -31,7 +31,6 @@ class AppearanceTransferModel:
         self.image_struct_mask_32, self.image_struct_mask_64 = None, None
         self.object1_mask_32, self.object1_mask_64 = None, None
         self.object2_mask_32, self.object2_mask_64 = None, None
-        # self.segmentor = Segmentor(prompt=config.prompt, object_nouns=[config.object_noun])
         self.register_attention_control()
         self.enable_edit = False
         self.step = 0
@@ -131,7 +130,7 @@ class AppearanceTransferModel:
                 self.set_masks(masks)
                 print("set masks at step: ", self.step)
             else:
-                if self.step % 5 == 0:
+                if self.step % MOD_STEP == 0:
                     masks = self.segmentor.get_object_masks(is_cross=True, step=self.step)
                     self.set_masks(masks)
             # Apply AdaIN operation using the computed masks
@@ -206,7 +205,7 @@ class AppearanceTransferModel:
                 if perform_swap and not is_cross and "up" in self.place_in_unet and model_self.enable_edit:
                     if attention_utils.should_mix_keys_and_values(model_self, hidden_states):
                         should_mix = True
-                        if model_self.step % 5 == 0 and model_self.step < 40:
+                        if model_self.step % MOD_STEP == 0 and model_self.step < 40:
                             # Moved from __call__
                             if model_self.image_struct_mask_32 is not None:
                                 # model_self.object1_mask_32, model_self.object2_mask_32 =
