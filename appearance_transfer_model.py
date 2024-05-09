@@ -11,6 +11,7 @@ from utils import attention_utils
 from utils.adain import masked_adain, adain, masked_adain_half_mask
 from utils.model_utils import get_stable_diffusion_model
 from utils.segmentation import Segmentor
+from utils.sam_segmentation import sam_segmentation_flow
 from utils.create_attention_maps import create_maps
 import numpy as np
 import os
