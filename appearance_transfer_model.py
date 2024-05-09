@@ -69,29 +69,28 @@ class AppearanceTransferModel:
             img.save(save_path)
             print(f"{name} is not None, saved at step: {step}")
 
-    def set_masks(self, masks: List[torch.Tensor]):
-        (self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32, self.image_app1_mask_64,
-         self.image_app2_mask_64, self.image_struct_mask_64) = masks
+    def set_masks(self):
+        struct_mask_dict_lst = sam_segmentation_flow(self.config.struct_image_path, n_objects=2)
+        app1_mask_dict_lst = sam_segmentation_flow(self.config.app1_image_path, n_objects=1)
+        app2_mask_dict_lst = sam_segmentation_flow(self.config.app2_image_path, n_objects=1)
+
+        self.object1_mask_32 = struct_mask_dict_lst[0][(32, 32)]
+        self.object1_mask_64 = struct_mask_dict_lst[0][(64, 64)]
+        self.object2_mask_32 = struct_mask_dict_lst[1][(32, 32)]
+        self.object2_mask_64 = struct_mask_dict_lst[1][(64, 64)]
+
+        self.image_app1_mask_32 = app1_mask_dict_lst[0][(32, 32)]
+        self.image_app1_mask_64 = app1_mask_dict_lst[0][(64, 64)]
+        self.image_app2_mask_32 = app2_mask_dict_lst[0][(32, 32)]
+        self.image_app2_mask_64 = app2_mask_dict_lst[0][(64, 64)]
+
         #self.visualize_masks()  # Visualize masks when they are set, new function
 
         # Call save_segmented_objects to save masks right after they are set
-        segmented_masks = [self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32,
-                           self.image_app1_mask_64, self.image_app2_mask_64, self.image_struct_mask_64]
-        self.save_segmented_objects(segmented_masks, "./segmentation_outputs")
+        #segmented_masks = [self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32,
+        #                   self.image_app1_mask_64, self.image_app2_mask_64, self.image_struct_mask_64]
+        #self.save_segmented_objects(segmented_masks, "./segmentation_outputs")
 
-    def set_masks_32_64(self, masks_32: List[torch.Tensor], masks_64: List[torch.Tensor]):
-        self.image_app1_mask_32 = masks_32[0]
-        self.image_app2_mask_32 = masks_32[1]
-        self.image_struct_mask_32 = masks_32[2]
-        self.image_app1_mask_64 = masks_64[0]
-        self.image_app2_mask_64 = masks_64[1]
-        self.image_struct_mask_64 = masks_64[2]
-        #self.visualize_masks()  # Visualize masks when they are set, new function
-
-        # Call save_segmented_objects to save masks right after they are set
-        segmented_masks = [self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32,
-                           self.image_app1_mask_64, self.image_app2_mask_64, self.image_struct_mask_64]
-        self.save_segmented_objects(segmented_masks, "./segmentation_outputs")
 
     def save_segmented_objects(self, segmented_masks: List[torch.Tensor], save_path: str):
         # Ensure the directory exists
@@ -128,12 +127,13 @@ class AppearanceTransferModel:
             # Compute the masks using prompt mixing self-segmentation and use the masks for AdaIN operation
             if self.config.use_masked_adain and self.step == self.config.adain_range.start:
                 masks = self.segmentor.get_object_masks(is_cross=True, step=self.step)
-                self.set_masks(masks)
+                #self.set_masks(masks)
                 print("set masks at step: ", self.step)
             else:
-                if self.step % MOD_STEP == 0:
-                    masks = self.segmentor.get_object_masks(is_cross=True, step=self.step)
-                    self.set_masks(masks)
+                if self.object1_mask_32 is None:
+                    self.set_masks()
+                    print()
+
             # Apply AdaIN operation using the computed masks
             if self.config.adain_range.start <= self.step < self.config.adain_range.end:
                 if self.config.use_masked_adain:
@@ -206,32 +206,12 @@ class AppearanceTransferModel:
                 if perform_swap and not is_cross and "up" in self.place_in_unet and model_self.enable_edit:
                     if attention_utils.should_mix_keys_and_values(model_self, hidden_states):
                         should_mix = True
-                        if model_self.step % MOD_STEP == 0 and model_self.step < 40:
-                            # Moved from __call__
-                            if model_self.image_struct_mask_32 is not None:
-                                # model_self.object1_mask_32, model_self.object2_mask_32 =
-                                # model_self.segmentor.split_connected_components_and_save(
-                                #     model_self.image_struct_mask_32,
-                                #     name="model_self.image_struct_mask_32",
-                                #     model_self=model_self,
-                                #     res=32,
-                                #     step=model_self.step)
-                                _, model_self.object1_mask_32, model_self.object2_mask_32 = (
-                                    model_self.segmentor.split_structure_mask(res=32))
-                            if model_self.image_struct_mask_64 is not None:
-                                # model_self.object1_mask_64, model_self.object2_mask_64 =
-                                # model_self.segmentor.split_connected_components_and_save(
-                                #     model_self.image_struct_mask_64,
-                                #     name="model_self.image_struct_mask_64",
-                                #     model_self=model_self,
-                                #     res=64,
-                                #     step=model_self.step)
-                                _, model_self.object1_mask_64, model_self.object2_mask_64 = (
-                                    model_self.segmentor.split_structure_mask(res=64))
+                        if model_self.step % 5 == 0 and model_self.step < 40:
                             # Inject the structure's keys and values
                             key[OUT_INDEX] = key[STRUCT_INDEX]
                             value[OUT_INDEX] = value[STRUCT_INDEX]
                         else:
+                            # Inject the appearance's keys and values
                             split_attn = True
 
                             #key, value = masked_cross_attn_keys(query, key, value, is_cross)
@@ -308,9 +288,11 @@ class AppearanceTransferModel:
             mask_struct_64 = convert_tensor(np.load("masks/cross_attention_structural_mask_resolution_64.npy"))
 
             if query.shape[1] == 32**2:
-                binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = mask_style1_32, mask_style2_32, mask_struct_32
+                binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = (mask_style1_32, mask_style2_32,
+                                                                                        mask_struct_32)
             elif query.shape[1] == 64**2:
-                binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = mask_style1_64, mask_style2_64, mask_struct_64
+                binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = (mask_style1_64, mask_style2_64,
+                                                                                        mask_struct_64)
             else:
                 return key, value
 
