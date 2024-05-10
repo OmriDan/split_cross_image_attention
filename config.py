@@ -29,11 +29,11 @@ class RunConfig:
     # Whether to use a binary mask for performing AdaIN
     use_masked_adain: bool = True
     # Timesteps to apply cross-attention on 64x64 layers
-    cross_attn_64_range: Range = Range(start=9, end=90)
+    cross_attn_64_range: Range = Range(start=10, end=100)
     # Timesteps to apply cross-attention on 32x32 layers
-    cross_attn_32_range: Range = Range(start=9, end=70)
+    cross_attn_32_range: Range = Range(start=10, end=80)
     # Timesteps to apply AdaIn
-    adain_range: Range = Range(start=1, end=100)
+    adain_range: Range = Range(start=10, end=90)
     # Swap guidance scale
     swap_guidance_scale: float = 3.5
     # Attention contrasting strength

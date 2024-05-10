@@ -86,11 +86,6 @@ class AppearanceTransferModel:
 
         #self.visualize_masks()  # Visualize masks when they are set, new function
 
-        # Call save_segmented_objects to save masks right after they are set
-        #segmented_masks = [self.image_app1_mask_32, self.image_app2_mask_32, self.image_struct_mask_32,
-        #                   self.image_app1_mask_64, self.image_app2_mask_64, self.image_struct_mask_64]
-        #self.save_segmented_objects(segmented_masks, "./segmentation_outputs")
-
 
     def save_segmented_objects(self, segmented_masks: List[torch.Tensor], save_path: str):
         # Ensure the directory exists
@@ -126,19 +121,19 @@ class AppearanceTransferModel:
             self.step = st
             # Compute the masks using prompt mixing self-segmentation and use the masks for AdaIN operation
             if self.config.use_masked_adain and self.step == self.config.adain_range.start:
-                masks = self.segmentor.get_object_masks(is_cross=True, step=self.step)
-                #self.set_masks(masks)
-                print("set masks at step: ", self.step)
+                if self.object1_mask_32 is None:
+                    self.set_masks()
+                #masks = self.segmentor.get_object_masks(is_cross=True, step=self.step)
+                #print("set masks at step: ", self.step)
             else:
                 if self.object1_mask_32 is None:
                     self.set_masks()
-                    print()
 
             # Apply AdaIN operation using the computed masks
             if self.config.adain_range.start <= self.step < self.config.adain_range.end:
                 if self.config.use_masked_adain:
                     latents[OUT_INDEX] = masked_adain(latents[OUT_INDEX], latents[STYLE1_INDEX], latents[STYLE2_INDEX],
-                                                      self.image_struct_mask_64, self.image_app1_mask_64,
+                                                      self.object1_mask_64, self.object2_mask_64, self.image_app1_mask_64,
                                                       self.image_app2_mask_64)
                 else:
                     latents[OUT_INDEX] = adain(latents[OUT_INDEX], latents[STYLE1_INDEX], latents[STYLE2_INDEX])

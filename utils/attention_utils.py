@@ -66,7 +66,7 @@ def split_attention(query, key, value, masks, edit_map=False, is_cross=False, co
     query_out, key_out, v_out = query_out.unsqueeze(0), key_out.unsqueeze(0), v_out.unsqueeze(0)
     struct_mask1, struct_mask2 = binary_struct_masks
     inv_struct_mask1, inv_struct_mask2 = inv_binary_struct_masks
-    bkg_mask = inv_struct_mask1 | inv_struct_mask2
+    bkg_mask = inv_struct_mask1 & inv_struct_mask2
 
     # Splitting the query and the binary masks to 2 objects
     query_bkg = (query_out * bkg_mask).float()
@@ -118,42 +118,35 @@ def split_attention(query, key, value, masks, edit_map=False, is_cross=False, co
 def load_masks(model_self, res):
     mask_style1_32 = model_self.image_app1_mask_32
     mask_style2_32 = model_self.image_app2_mask_32
-    mask_struct_32 = model_self.image_struct_mask_32
+    mask_struct1_32 = model_self.object1_mask_32
+    mask_struct2_32 = model_self.object2_mask_32
+
     mask_style1_64 = model_self.image_app1_mask_64
     mask_style2_64 = model_self.image_app2_mask_64
-    mask_struct_64 = model_self.image_struct_mask_64
+    mask_struct1_64 = model_self.object1_mask_64
+    mask_struct2_64 = model_self.object2_mask_64
+
     if res == 32 ** 2:
-        binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = \
-            mask_struct_32.squeeze(), mask_style1_32.squeeze(), mask_style2_32.squeeze()
+        struct_mask1, struct_mask2, binary_mask_appearance1, binary_mask_appearance2 = \
+            mask_struct1_32.squeeze(), mask_struct2_32.squeeze(), mask_style1_32.squeeze(), mask_style2_32.squeeze()
     elif res == 64 ** 2:
-        binary_mask_struct, binary_mask_appearance1, binary_mask_appearance2 = \
-            mask_struct_64.squeeze(), mask_style1_64.squeeze(), mask_style2_64.squeeze()
+        struct_mask1, struct_mask2, binary_mask_appearance1, binary_mask_appearance2 = \
+            mask_struct1_64.squeeze(), mask_struct2_64.squeeze(), mask_style1_64.squeeze(), mask_style2_64.squeeze()
     else:
         return
-    mid_struct_idx = int(np.sqrt(res) // 2)
-
-    inv_binary_mask_struct = (~binary_mask_struct + 2)
-
-    struct_mask1 = torch.zeros_like(binary_mask_struct)
-    struct_mask2 = torch.zeros_like(binary_mask_struct)
-    struct_mask1[:, :mid_struct_idx] = binary_mask_struct[:, :mid_struct_idx]
-    struct_mask2[:, mid_struct_idx:] = binary_mask_struct[:, mid_struct_idx:]
-
 
     binary_mask_appearance1 = binary_mask_appearance1.squeeze().flatten().view(-1, 1).to('cuda')
     binary_mask_appearance2 = binary_mask_appearance2.squeeze().flatten().view(-1, 1).to('cuda')
 
-    inv_struct_mask1 = (~struct_mask1 + 2)
-    inv_struct_mask1[:, mid_struct_idx:] = 0
+    inv_struct_mask1 = (~struct_mask1.int() + 2)
     inv_struct_mask1 = inv_struct_mask1.flatten().view(-1, 1).to('cuda')
-    inv_struct_mask2 = (~struct_mask2 + 2)
-    inv_struct_mask2[:, :mid_struct_idx] = 0
+    inv_struct_mask2 = (~struct_mask2.int() + 2)
     inv_struct_mask2 = inv_struct_mask2.flatten().view(-1, 1).to('cuda')
 
     struct_mask1 = struct_mask1.flatten().view(-1, 1).to('cuda')
     struct_mask2 = struct_mask2.flatten().view(-1, 1).to('cuda')
-    inv_binary_mask_appearance1 = (~binary_mask_appearance1 + 2).view(-1, 1).to('cuda')
-    inv_binary_mask_appearance2 = (~binary_mask_appearance2 + 2).view(-1, 1).to('cuda')
+    inv_binary_mask_appearance1 = (~binary_mask_appearance1.int() + 2).view(-1, 1).to('cuda')
+    inv_binary_mask_appearance2 = (~binary_mask_appearance2.int() + 2).view(-1, 1).to('cuda')
     binary_struct_masks = [struct_mask1, struct_mask2]
 
     inv_binary_struct_masks = [inv_struct_mask1, inv_struct_mask2]
