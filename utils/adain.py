@@ -30,7 +30,31 @@ def masked_adain_half_mask(content_feat, style1_feat, style2_feat, content_mask,
     return combined_feat
 
 
-def masked_adain(content_feat, style1_feat, style2_feat, content_mask, style1_mask, style2_mask):
+def masked_adain(content_feat, style1_feat, style2_feat, content_mask_1, content_mask_2, style1_mask, style2_mask):
+    assert ((content_feat.size()[:2] == style1_feat.size()[:2]) and (content_feat.size()[:2] == style2_feat.size()[:2]))
+    device = content_feat.device  # Get the device of content_feat
+    size = content_feat.size()
+
+    # Move masks to the same device as content_feat
+    content_mask_1 = content_mask_1.to(device)
+    content_mask_2 = content_mask_2.to(device)
+    style1_mask = style1_mask.to(device)
+    style2_mask = style2_mask.to(device)
+
+    style1_mean, style1_std = calc_mean_std(style1_feat, mask=style1_mask)
+    style2_mean, style2_std = calc_mean_std(style2_feat, mask=style2_mask)
+    content_mean_1, content_std_1 = calc_mean_std(content_feat, mask=content_mask_1)
+    content_mean_2, content_std_2 = calc_mean_std(content_feat, mask=content_mask_2)
+    normalized_feat_1 = (content_feat - content_mean_1.expand(size)) / content_std_1.expand(size)
+    normalized_feat_2 = (content_feat - content_mean_2.expand(size)) / content_std_2.expand(size)
+    style1_normalized_feat = normalized_feat_1 * style1_std.expand(size) + style1_mean.expand(size)
+    style2_normalized_feat = normalized_feat_2 * style2_std.expand(size) + style2_mean.expand(size)
+    combined_feat = (content_feat * (1 - content_mask_1.float() - content_mask_2.float())
+                     + style1_normalized_feat * content_mask_1.float()
+                     + style2_normalized_feat * content_mask_2.float())
+    return combined_feat
+
+def masked_adain_1(content_feat, style1_feat, style2_feat, content_mask, style1_mask, style2_mask):
     assert ((content_feat.size()[:2] == style1_feat.size()[:2]) and (content_feat.size()[:2] == style2_feat.size()[:2]))
     size = content_feat.size()
     style1_mean, style1_std = calc_mean_std(style1_feat, mask=style1_mask)
