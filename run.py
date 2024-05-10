@@ -1,7 +1,7 @@
 # Import necessary modules
 import sys
 from typing import List
-
+import datetime
 import numpy as np
 import pyrallis
 import torch
@@ -18,7 +18,6 @@ from appearance_transfer_model import AppearanceTransferModel
 from config import RunConfig, Range
 from utils import latent_utils
 from utils.latent_utils import load_latents_or_invert_images
-
 
 # Configure the script to use configuration objects defined by Pyrallis
 @pyrallis.wrap()
@@ -71,13 +70,14 @@ def run_appearance_transfer(model: AppearanceTransferModel, cfg: RunConfig) -> L
         generator=torch.Generator('cuda').manual_seed(cfg.seed),
         cross_image_attention_range=Range(start=start_step, end=end_step),
     ).images
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     # Save output images individually and then join and save them as one image
-    images[0].save(cfg.output_path / f"out_transfer---seed_{cfg.seed}.png")
-    images[1].save(cfg.output_path / f"out_style1---seed_{cfg.seed}.png")
-    images[2].save(cfg.output_path / f"out_style2---seed_{cfg.seed}.png")
-    images[3].save(cfg.output_path / f"out_struct---seed_{cfg.seed}.png")
+    images[0].save(cfg.output_path / f"out_transfer---seed_{cfg.seed}---{timestamp}.png")
+    images[1].save(cfg.output_path / f"out_style1---seed_{cfg.seed}---{timestamp}.png")
+    images[2].save(cfg.output_path / f"out_style2---seed_{cfg.seed}---{timestamp}.png")
+    images[3].save(cfg.output_path / f"out_struct---seed_{cfg.seed}---{timestamp}.png")
     joined_images = np.concatenate(images[::-1], axis=1)
-    Image.fromarray(joined_images).save(cfg.output_path / f"out_joined---seed_{cfg.seed}.png")
+    Image.fromarray(joined_images).save(cfg.output_path / f"out_joined---seed_{cfg.seed}---{timestamp}.png")
     return images
 
 
