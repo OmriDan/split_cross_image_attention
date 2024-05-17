@@ -46,7 +46,7 @@ def compute_attention(Q, K, V, is_cross, split_attn, edit_map, model_self):
                                                                           is_cross=is_cross,
                                                                           contrast_strength=model_self.config.contrast_strength)
     else:
-        hidden_states, attn_weight = split_attention(Q, K, V, masks=load_masks(model_self, res=Q.shape[2]))
+        hidden_states, attn_weight = split_attention(Q, K, V, masks=load_masks(model_self, res=Q.shape[2]), edit_map=edit_map, is_cross=is_cross, contrast_strength=model_self.config.contrast_strength)
     return hidden_states, attn_weight
 
 
@@ -80,11 +80,19 @@ def split_attention(query, key, value, masks, edit_map=False, is_cross=False, co
     key_bkg = key[OUT_INDEX]
     value_bkg = value[OUT_INDEX]
     # Using k,v from style 1 on object 1 might be key[mask] = OUT/VAL
-    key_out1 = key[STYLE1_INDEX]  # adding k of style1 maybe unsqueeze?
-    value_out1 = value[STYLE1_INDEX]  # adding v of style1
+    key_out1 = key[STYLE1_INDEX] #* binary_mask_appearance1  # adding k of style1 maybe unsqueeze?
+    #key_out1[key_out1 == 0] = -float("Inf")
+
+    value_out1 = value[STYLE1_INDEX]# * binary_mask_appearance1 # adding v of style1
+    #value_out1[value_out1 == 0] = -float("Inf")
+
     # Using k,v from style 2 on object 2
-    key_out2 = key[STYLE2_INDEX]  # adding k of style2
-    value_out2 = value[STYLE2_INDEX]  # adding v of style2
+    key_out2 = key[STYLE2_INDEX] #* binary_mask_appearance2 # adding k of style2
+    #key_out2[key_out2 == 0] = -float("Inf")
+
+    value_out2 = value[STYLE2_INDEX] #* binary_mask_appearance2 # adding v of style2
+    #value_out2[value_out2 == 0] = -float("Inf")
+
     attn_weight_bkg = torch.softmax(
         (query_bkg @ key_bkg.transpose(-2, -1) / math.sqrt(query_bkg.size(-1))), dim=-1)
     attn_weight_bkg[torch.isnan(attn_weight_bkg)] = 0

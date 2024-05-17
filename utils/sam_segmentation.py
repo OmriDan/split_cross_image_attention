@@ -1,9 +1,12 @@
+import os
+from datetime import datetime
 import torch
 import cv2
 import numpy as np
 from ultralytics import YOLO
 from segment_anything import sam_model_registry, SamPredictor
-
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 def init(image_path='./images/two_cakes.jpeg'):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -50,7 +53,7 @@ def resize_masks(mask, sizes=[(32, 32), (64, 64)]):
     return resized_masks
 
 
-def create_sam_segmentation(image_path, n_objects=2):
+def create_sam_segmentation(image_path, n_objects=2, display=False):
     output_mask_dict_lst = []
     device, model_type, checkpoint_path, image_rgb = init(image_path)
     sam = sam_model_registry[model_type](checkpoint=checkpoint_path).to(device=device)
@@ -70,11 +73,13 @@ def create_sam_segmentation(image_path, n_objects=2):
         )
         chosen_mask = masks[np.argmax(scores)]
         full_size_object_masks.append(chosen_mask)
+        if display:
+            display_mask_and_bbox(image_rgb, object_box, chosen_mask)
+
         if len(full_size_object_masks) == n_objects:
             break
     for mask in full_size_object_masks:
         output_mask_dict_lst.append(resize_masks(mask))
-
     return output_mask_dict_lst
 
 
@@ -83,4 +88,17 @@ def sam_segmentation_flow(image_path, n_objects):
     return create_sam_segmentation(image_path, n_objects=n_objects)
 
 
-
+def display_mask_and_bbox(image, bbox, mask):
+    fig, ax = plt.subplots()
+    ax.imshow(image)
+    bbox = bbox.cpu().numpy()
+    x_tl, y_tl, x_br, y_br = bbox[:,0], bbox[:,1], bbox[:,2], bbox[:,3]
+    w = x_br - x_tl
+    h = y_br - y_tl
+    rect = patches.Rectangle((x_tl, y_tl), w, h, linewidth=2, edgecolor='r', facecolor='none')
+    #ax.add_patch(rect)
+    ax.imshow(np.asarray(mask), cmap='jet', alpha=0.5)  # Adjust alpha for transparency
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    save_path = os.path.join("./masks_for_slides", f'overall_mask_{timestamp}')
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0)
+    a=1
