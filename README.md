@@ -1,6 +1,8 @@
 # Cross-Image Attention for Zero-Shot Appearance Transfer
 
 > Omri Dan, Gilad Sivan
+>
+>
 > Mentor: Dana Cohen
 > Tel Aviv University  
 
@@ -58,5 +60,7 @@ Notes:
 ## Acknowledgements 
 This code builds on the code of 
 This code was a part of a Deep Learning course final project, under the guidance of Prof. Raja Geris.
+
 We'd like to thank Dana Cohen, Daniel Garibi and Romario Zarik for their contribution.
+
 This code builds on the code from the Cross-Image Attention for Zero-Shot Appearance Transfer paper [cross_image_attention](https://github.com/garibida/cross-image-attention).
