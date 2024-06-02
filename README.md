@@ -10,13 +10,10 @@
 > The rapid advancements in generative models have significantly expanded the capabilities of image synthesis and manipulation. In the domain of appearance transfer, existing methods primarily focus on transferring visual characteristics from one image to another, usually involving single objects. Building on this foundation, we introduce a novel technique called Split Cross-Image Attention, which facilitates the simultaneous transfer of appearances from two different images onto two distinct objects within a single structure image. Our method utilizes state-of-the-art segmentation and detection models, YOLOv8 and SAM, to create precise masks, ensuring accurate appearance transfer while preserving the original background. This approach enhances the ability to generate composite images that retain structural integrity and visual coherence. Through extensive experiments, we demonstrate the effectiveness of our method across various domains, highlighting improvements in segmentation accuracy, background preservation, and detail retention.
 
 
-<p align="center">
-<img src=![splitAttnExample](https://github.com/OmriDan/image_composition_diffusion/assets/73032331/24f1ec74-8321-441f-9027-69a7c89d1c27) width="90%"/
->  
-<br>
-Given three images—a source structure image with two objects and two appearance images—our method generates a new image that retains the original background while the two objects adopt the appearances from the respective appearance images.
-</p>
+![splitAttnExample](https://github.com/OmriDan/image_composition_diffusion/assets/73032331/77c4efa3-35eb-420a-aec7-6253e928e006)
 
+
+**Given three images—a source structure image with two objects and two appearance images—our method generates a new image that retains the original background while the two objects adopt the appearances from the respective appearance images.**
 
 ## Description  
 Official implementation of our SplitAttention mechanism.
@@ -30,10 +27,10 @@ conda activate cross_image
 ```
 
 ## Usage  
-<p align="center">
-<img src="docs/general_results.jpg" width="90%"/>  
-<br>
-Sample appearance transfer results obtained by our cross-image attention technique.
+![sameDomainExamples](https://github.com/OmriDan/image_composition_diffusion/assets/73032331/10f1ca69-60b4-4c4f-90a9-10723a7b1f4e)
+
+**Split Image Attention - Dual Appearance Transfer -
+Same Domain**
 </p>
 
 To generate an image, you can simply run the `run.py` script. For example,
