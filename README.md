@@ -11,9 +11,10 @@
 
 
 <p align="center">
-<img src="docs/teaser.jpg" width="90%"/>  
+<img src=![splitAttnExample](https://github.com/OmriDan/image_composition_diffusion/assets/73032331/24f1ec74-8321-441f-9027-69a7c89d1c27) width="90%"/
+>  
 <br>
-Given two images depicting a source structure and a target appearance, our method generates an image merging the structure of one image with the appearance of the other in a zero-shot manner.
+Given three images—a source structure image with two objects and two appearance images—our method generates a new image that retains the original background while the two objects adopt the appearances from the respective appearance images.
 </p>
 
 
