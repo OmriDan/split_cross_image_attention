@@ -7,7 +7,7 @@
 > Tel Aviv University  
 
 >
-> PROJECT ABSTRACT HERE
+> The rapid advancements in generative models have significantly expanded the capabilities of image synthesis and manipulation. In the domain of appearance transfer, existing methods primarily focus on transferring visual characteristics from one image to another, usually involving single objects. Building on this foundation, we introduce a novel technique called Split Cross-Image Attention, which facilitates the simultaneous transfer of appearances from two different images onto two distinct objects within a single structure image. Our method utilizes state-of-the-art segmentation and detection models, YOLOv8 and SAM, to create precise masks, ensuring accurate appearance transfer while preserving the original background. This approach enhances the ability to generate composite images that retain structural integrity and visual coherence. Through extensive experiments, we demonstrate the effectiveness of our method across various domains, highlighting improvements in segmentation accuracy, background preservation, and detail retention.
 
 
 <p align="center">
