@@ -11,15 +11,15 @@ class Range(NamedTuple):
 @dataclass
 class RunConfig:
     # 1st Appearance image path
-    app1_image_path: Path = Path('/mnt/sda1/OmriD/notebooks/inputs/dalmatian.png')
+    app1_image_path: Path # = Path('/mnt/sda1/OmriD/notebooks/inputs/dalmatian.png')
     # 2nd Appearance image path
-    app2_image_path: Path = Path('/mnt/sda1/OmriD/notebooks/inputs/red_cat.png')
+    app2_image_path: Path #= Path('/mnt/sda1/OmriD/notebooks/inputs/red_cat.png')
     # Struct image path
-    struct_image_path: Path = Path('/mnt/sda1/OmriD/notebooks/inputs/cat_and_dog4.png')
+    struct_image_path: Path #= Path('/mnt/sda1/OmriD/notebooks/inputs/cat_and_dog4.png')
     # Domain name (e.g., buildings, animals)
-    domain_name: Optional[str] = 'animal' #None
+    domain_name: Optional[str] #= 'animal' #None
     # Output path
-    output_path: Path = Path('/mnt/sda1/OmriD/output') #Path('./output')
+    output_path: Path = Path('./output') #Path('/mnt/sda1/OmriD/output') #
     # Random seed
     seed: int = 42
     # Input prompt for inversion (will use domain name as default)
@@ -29,9 +29,9 @@ class RunConfig:
     # Whether to use a binary mask for performing AdaIN
     use_masked_adain: bool = True
     # Timesteps to apply cross-attention on 64x64 layers
-    cross_attn_64_range: Range = Range(start=10, end=100)
+    cross_attn_64_range: Range = Range(start=10, end=90)
     # Timesteps to apply cross-attention on 32x32 layers
-    cross_attn_32_range: Range = Range(start=10, end=80)
+    cross_attn_32_range: Range = Range(start=10, end=70)
     # Timesteps to apply AdaIn
     adain_range: Range = Range(start=10, end=90)
     # Swap guidance scale
