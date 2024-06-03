@@ -1,4 +1,4 @@
-# Cross-Image Attention for Zero-Shot Appearance Transfer
+# Split Cross-Image Attention - Deep Learning Project
 
 > Omri Dan, Gilad Sivan
 >
